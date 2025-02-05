@@ -41,6 +41,12 @@ const serveStaticFile = async (req, res) => {
   };
 
   try {
+    // Favicon isteğini kontrol et
+    if (filePath.endsWith("favicon.ico")) {
+      res.writeHead(204); // No Content
+      res.end();
+      return;
+    }
     const content = await fs.promises.readFile(filePath);
     const ext = path.extname(filePath);
     res.writeHead(200, { "Content-Type": contentType[ext] || "text/plain" });
