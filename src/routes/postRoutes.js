@@ -1,6 +1,7 @@
 const { Post, User, Category, Topic, Like } = require("../models");
 const jwt = require("jsonwebtoken");
 const { spawn } = require("child_process");
+const postController = require("../controllers/postController");
 
 async function analyzeContent(content) {
   return new Promise((resolve, reject) => {
@@ -202,29 +203,35 @@ async function postRoutes(req, res) {
   const method = req.method;
   const url = req.url;
 
-  switch (method) {
-    case "GET":
-      await handleGetRequest(req, res);
-      break;
-    case "POST":
-      if (url.match(/\/api\/posts\/\d+\/like/)) {
-        const postId = url.split("/")[3];
-        await handleLikeRequest(req, res, postId);
-      } else {
-        await handlePostRequest(req, res);
-      }
-      break;
-    case "OPTIONS":
-      res.writeHead(200, {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "GET, POST",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
-      });
-      res.end();
-      break;
-    default:
-      res.writeHead(405, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ message: "Method not allowed" }));
+  try {
+    switch (method) {
+      case "GET":
+        await postController.getAllPosts(req, res);
+        break;
+      case "POST":
+        if (url.match(/\/api\/posts\/\d+\/like/)) {
+          const postId = url.split("/")[3];
+          await postController.likePost(req, res, postId);
+        } else {
+          await postController.createPost(req, res);
+        }
+        break;
+      case "OPTIONS":
+        res.writeHead(200, {
+          "Access-Control-Allow-Origin": "*",
+          "Access-Control-Allow-Methods": "GET, POST",
+          "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        });
+        res.end();
+        break;
+      default:
+        res.writeHead(405, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: "Method not allowed" }));
+    }
+  } catch (error) {
+    console.error("Post route hatası:", error);
+    res.writeHead(500, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ message: "Sunucu hatası" }));
   }
 }
 
