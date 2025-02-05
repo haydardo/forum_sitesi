@@ -1,4 +1,5 @@
 const { Category, Post, User } = require("../models/index");
+const categoryController = require("../controllers/categoryController");
 
 // Kategorileri önbellekten veya veritabanından getir
 async function getCategoriesWithCache(redisClient) {
@@ -166,20 +167,43 @@ async function categoryRoutes(req, res, redisClient) {
       res.end(html);
     } catch (error) {
       console.error("Kategori hatası:", error);
-
-      // İstek tipine göre hata formatını belirle
-      if (req.headers.accept?.includes("application/json")) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Kategoriler alınamadı" }));
-      } else {
-        res.writeHead(500, { "Content-Type": "text/html" });
-        res.end(
-          "<h1>Sunucu Hatası</h1><p>Kategoriler yüklenirken bir hata oluştu.</p>"
-        );
-      }
+      handleError(res, error);
     }
-    return;
   }
+
+  // Diğer HTTP metodları için controller fonksiyonlarını kullan
+  try {
+    switch (req.method) {
+      case "POST":
+        await categoryController.createCategory(req, res);
+        break;
+      case "PUT":
+        if (req.url.match(/^\/api\/categories\/\d+$/)) {
+          const id = req.url.split("/")[3];
+          await categoryController.updateCategory(req, res, id);
+        }
+        break;
+      case "DELETE":
+        if (req.url.match(/^\/api\/categories\/\d+$/)) {
+          const id = req.url.split("/")[3];
+          await categoryController.deleteCategory(req, res, id);
+        }
+        break;
+    }
+  } catch (error) {
+    console.error("Kategori route hatası:", error);
+    handleError(res, error);
+  }
+}
+
+function handleError(res, error) {
+  const statusCode =
+    error.name === "SequelizeUniqueConstraintError" ? 400 : 500;
+  const message =
+    statusCode === 400 ? "Bu kategori adı zaten kullanılıyor" : "Sunucu hatası";
+
+  res.writeHead(statusCode, { "Content-Type": "application/json" });
+  res.end(JSON.stringify({ message }));
 }
 
 module.exports = categoryRoutes;
