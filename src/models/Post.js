@@ -72,6 +72,9 @@ module.exports = (sequelize, DataTypes) => {
       sequelize,
       modelName: "Post",
       tableName: "posts",
+      timestamps: true,
+      createdAt: "created_at",
+      updatedAt: "updated_at",
       underscored: true,
       hooks: {
         afterCreate: async (post) => {
