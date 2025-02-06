@@ -1,5 +1,7 @@
 const jwt = require("jsonwebtoken");
-const { Post, Like, User, sequelize } = require("../models");
+const { Post, Like, User, sequelize, Category, Topic } = require("../models");
+const path = require("path");
+const fs = require("fs/promises");
 
 class PostController {
   async getAllPosts(req, res) {
@@ -10,6 +12,11 @@ class PostController {
             model: User,
             as: "author",
             attributes: ["username"],
+          },
+          {
+            model: Category,
+            as: "category",
+            attributes: ["id", "name", "description"],
           },
         ],
         order: [["created_at", "DESC"]],
@@ -60,15 +67,48 @@ class PostController {
       const userId = decoded.id;
 
       const { title, content, categoryId } = req.body;
+
+      // Benzersiz slug oluştur
+      const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const timestamp = Date.now();
+      const uniqueSlug = `${baseSlug}-${timestamp}`;
+
+      // Yeni bir topic oluştur
+      const topic = await Topic.create({
+        title,
+        content,
+        user_id: userId,
+        category_id: categoryId,
+        slug: uniqueSlug,
+      });
+
+      // Post'u topic_id ile oluştur
       const post = await Post.create({
         title,
         content,
         user_id: userId,
         category_id: categoryId,
+        topic_id: topic.id,
+      });
+
+      // Oluşturulan postu ilişkileriyle birlikte al
+      const createdPost = await Post.findByPk(post.id, {
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["username"],
+          },
+          {
+            model: Category,
+            as: "category",
+            attributes: ["id", "name"],
+          },
+        ],
       });
 
       res.writeHead(201, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(post));
+      res.end(JSON.stringify(createdPost));
     } catch (error) {
       console.error("Gönderi oluşturma hatası:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
@@ -172,6 +212,11 @@ class PostController {
             as: "author",
             attributes: ["username"],
           },
+          {
+            model: Category,
+            as: "category",
+            attributes: ["id", "name", "description"],
+          },
         ],
       });
 
@@ -181,8 +226,19 @@ class PostController {
         return;
       }
 
-      res.writeHead(200, { "Content-Type": "application/json" });
-      res.end(JSON.stringify(post));
+      // API isteği için JSON yanıt
+      if (req.headers.accept?.includes("application/json")) {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(JSON.stringify(post));
+        return;
+      }
+
+      // HTML yanıt için template dosyasını serve et
+      const htmlFilePath = path.join(__dirname, "../../public/post.html");
+      const html = await fs.readFile(htmlFilePath, "utf-8");
+
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(html);
     } catch (error) {
       console.error("Gönderi alınırken hata:", error);
       res.writeHead(500, { "Content-Type": "application/json" });

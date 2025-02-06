@@ -25,6 +25,8 @@ const serveStaticFile = async (req, res) => {
     filePath = path.join(__dirname, "../public/register.html");
   } else if (req.url.startsWith("/api/")) {
     return false; // API isteklerini işleme
+  } else if (req.url.match(/^\/posts\/\d+$/)) {
+    filePath = path.join(__dirname, "../public/post.html");
   } else {
     filePath = path.join(__dirname, "../public", req.url);
   }
@@ -104,6 +106,28 @@ const startApp = async () => {
           res.writeHead(200);
           res.end();
           return;
+        }
+
+        // POST istekleri için body parsing
+        if (req.method === "POST") {
+          let body = "";
+          req.on("data", (chunk) => {
+            body += chunk.toString();
+          });
+
+          await new Promise((resolve, reject) => {
+            req.on("end", () => {
+              try {
+                if (body) {
+                  req.body = JSON.parse(body);
+                }
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            });
+            req.on("error", reject);
+          });
         }
 
         // Statik dosya kontrolü

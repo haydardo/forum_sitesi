@@ -11,13 +11,12 @@ const elements = {
   usernameSpan: document.getElementById("username"),
 };
 
+// Tarih formatla
 const formatDate = (dateString) => {
   if (!dateString) return "Tarih yok";
-
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "Geçersiz tarih";
-
     return new Intl.DateTimeFormat("tr-TR", {
       year: "numeric",
       month: "long",
@@ -31,6 +30,7 @@ const formatDate = (dateString) => {
   }
 };
 
+// Kategorileri yükle
 const loadCategories = async () => {
   try {
     if (!localStorage.getItem("token")) {
@@ -52,93 +52,35 @@ const loadCategories = async () => {
   }
 };
 
-// Auth Functions
-const checkAuthStatus = () => {
-  const token = localStorage.getItem("token");
-  const username = localStorage.getItem("username");
-  const isAuthenticated = !!token;
-
-  elements.girisLink.classList.toggle("d-none", isAuthenticated);
-  elements.kayitLink.classList.toggle("d-none", isAuthenticated);
-  elements.cikisLink.classList.toggle("d-none", !isAuthenticated);
-  elements.userInfo.classList.toggle("d-none", !isAuthenticated);
-  elements.newPostSection.classList.toggle("d-none", !isAuthenticated);
-
-  if (isAuthenticated && username) {
-    elements.usernameSpan.textContent = username;
-  }
-};
-
-const setupLogout = () => {
-  elements.cikisLink.addEventListener("click", () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("username");
-    window.location.href = "/";
-  });
-};
-
+// Gönderi elementi oluştur
 const createPostElement = (post) => {
-  const postElement = document.createElement("article");
-  postElement.className = "list-group-item";
+  const div = document.createElement("div");
+  div.className = "list-group-item";
 
-  const isLiked =
-    post.likes &&
-    post.likes.some(
-      (like) => like.user_id === parseInt(localStorage.getItem("userId"))
-    );
+  const authorName = post.author?.username
+    ? `<span class="text-primary">${post.author.username}</span>`
+    : `<span class="text-danger">Kullanıcı Silinmiş</span>`;
 
-  postElement.innerHTML = `
+  const categoryName = post.category?.name
+    ? `<span class="text-success">${post.category.name}</span>`
+    : `<span class="text-warning">Kategori Seçilmemiş</span>`;
+
+  div.innerHTML = `
     <div class="d-flex justify-content-between align-items-center">
       <h5 class="mb-1">${post.title}</h5>
       <small class="text-muted">${formatDate(post.created_at)}</small>
     </div>
     <p class="mb-1">${post.content}</p>
-    <div class="d-flex justify-content-between align-items-center">
-      <small class="text-muted">
-        Yazar: ${post.author ? post.author.username : "Anonim"} | 
-        Kategori: ${post.category ? post.category.name : "Genel"}
-      </small>
-      <div>
-        <button class="btn btn-sm btn-outline-primary like-button" data-post-id="${
-          post.id
-        }">
-          <i class="bi bi-heart${isLiked ? "-fill" : ""}"></i> ${
-    post.like_count || 0
-  } Beğeni
-        </button>
-      </div>
-    </div>
+    <small>
+      Yazar: ${authorName} | 
+      Kategori: ${categoryName}
+    </small>
   `;
 
-  const likeButton = postElement.querySelector(".like-button");
-  likeButton.addEventListener("click", async () => {
-    try {
-      if (!localStorage.getItem("token")) {
-        alert("Beğeni yapmak için giriş yapmalısınız!");
-        return;
-      }
-
-      const response = await API.likePost(post.id);
-      const newLikeCount = Math.max(0, response.likeCount); // Büyük olanı kullanıyor.
-      post.like_count = newLikeCount;
-      post.likes = response.liked
-        ? [{ user_id: parseInt(localStorage.getItem("userId")) }]
-        : [];
-
-      likeButton.innerHTML = `
-        <i class="bi bi-heart${response.liked ? "-fill" : ""}"></i> 
-        ${newLikeCount} Beğeni
-      `;
-    } catch (error) {
-      console.error("Beğeni hatası:", error);
-      alert("Beğeni işlemi başarısız oldu.");
-    }
-  });
-
-  return postElement;
+  return div;
 };
 
-// Post Functions
+// Gönderileri yükle
 const loadPosts = async () => {
   try {
     const posts = await API.getPosts();
@@ -160,6 +102,7 @@ const loadPosts = async () => {
   }
 };
 
+// Yeni gönderi oluştur
 const createPost = async (event) => {
   event.preventDefault();
 
@@ -181,6 +124,38 @@ const createPost = async (event) => {
     console.error("Gönderi oluşturulurken hata:", error);
     alert("Gönderi oluşturulurken bir hata oluştu.");
   }
+};
+
+// Oturum kontrolü
+const checkAuthStatus = () => {
+  const token = localStorage.getItem("token");
+  const username = localStorage.getItem("username");
+
+  if (token && username) {
+    elements.girisLink.classList.add("d-none");
+    elements.kayitLink.classList.add("d-none");
+    elements.cikisLink.classList.remove("d-none");
+    elements.userInfo.classList.remove("d-none");
+    elements.usernameSpan.textContent = username;
+    elements.yeniGonderiBtn.classList.remove("d-none");
+  } else {
+    elements.girisLink.classList.remove("d-none");
+    elements.kayitLink.classList.remove("d-none");
+    elements.cikisLink.classList.add("d-none");
+    elements.userInfo.classList.add("d-none");
+    elements.yeniGonderiBtn.classList.add("d-none");
+  }
+};
+
+// Çıkış işlemi
+const setupLogout = () => {
+  elements.cikisLink.addEventListener("click", (e) => {
+    e.preventDefault();
+    localStorage.removeItem("token");
+    localStorage.removeItem("username");
+    checkAuthStatus();
+    window.location.href = "/";
+  });
 };
 
 // Event Listeners

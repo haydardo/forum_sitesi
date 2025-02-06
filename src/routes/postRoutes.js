@@ -73,7 +73,13 @@ async function postRoutes(req, res) {
   try {
     switch (method) {
       case "GET":
-        await postController.getAllPosts(req, res);
+        if (url.match(/^\/api\/posts\/\d+$/)) {
+          const postId = url.split("/")[3];
+          req.params = { id: postId };
+          await postController.getPostById(req, res);
+        } else {
+          await postController.getAllPosts(req, res);
+        }
         break;
       case "POST":
         if (url.match(/\/api\/posts\/\d+\/like/)) {
