@@ -8,15 +8,15 @@
     <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="container mt-5">
-        <div class="row justify-content-center">
+    <div class="container">
+        <div class="row justify-content-center mt-5">
             <div class="col-md-6">
                 <div class="card">
                     <div class="card-header">
                         <h3 class="text-center">Giriş Yap</h3>
                     </div>
                     <div class="card-body">
-                        <form id="loginForm" onsubmit="return false;">
+                        <form id="loginForm">
                             <div class="mb-3">
                                 <label for="username" class="form-label">Kullanıcı Adı</label>
                                 <input type="text" class="form-control" id="username" required>
@@ -25,10 +25,12 @@
                                 <label for="password" class="form-label">Şifre</label>
                                 <input type="password" class="form-control" id="password" required>
                             </div>
-                            <button type="submit" class="btn btn-primary w-100">Giriş Yap</button>
+                            <div class="d-grid">
+                                <button type="submit" class="btn btn-primary">Giriş Yap</button>
+                            </div>
                         </form>
                         <div class="text-center mt-3">
-                            <a href="/register" class="text-decoration-none">Hesabınız yok mu? Kayıt olun</a>
+                            <a href="/register">Hesabınız yok mu? Kayıt olun</a>
                         </div>
                     </div>
                 </div>
@@ -40,18 +42,15 @@
     <script>
         document.getElementById('loginForm').addEventListener('submit', async (e) => {
             e.preventDefault();
+            
             const username = document.getElementById('username').value;
             const password = document.getElementById('password').value;
 
             try {
-                const response = await API.login({ username, password });
-                if (response.token) {
-                    localStorage.setItem('token', response.token);
-                    localStorage.setItem('username', response.username);
-                    window.location.href = '/';
-                }
+                await API.login(username, password);
+                window.location.href = '/';
             } catch (error) {
-                alert('Giriş başarısız: ' + error.message);
+                alert(error.message || 'Giriş yapılırken bir hata oluştu');
             }
         });
     </script>

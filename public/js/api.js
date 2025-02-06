@@ -1,4 +1,6 @@
 const API = {
+  baseUrl: "http://localhost:3001/api",
+
   //Wrapper ile bütün api işlemleri tek bir yerde yönetilebilir.
   // Gönderiler
   getPosts: async () => {
@@ -47,36 +49,49 @@ const API = {
   },
 
   // Kullanıcı işlemleri
-  login: async (credentials) => {
+  async login(username, password) {
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch(`${this.baseUrl}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(credentials),
+        body: JSON.stringify({ username, password }),
       });
-      if (!response.ok) throw new Error("Giriş başarısız");
-      return await response.json();
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Giriş başarısız");
+      }
+
+      const data = await response.json();
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("username", data.username);
+      return data;
     } catch (error) {
-      console.error("Hata:", error);
+      console.error("Giriş hatası:", error);
       throw error;
     }
   },
 
-  register: async (userData) => {
+  async register(username, password) {
     try {
-      const response = await fetch("/api/auth/register", {
+      const response = await fetch(`${this.baseUrl}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(userData),
+        body: JSON.stringify({ username, password }),
       });
-      if (!response.ok) throw new Error("Kayıt başarısız");
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.message || "Kayıt başarısız");
+      }
+
       return await response.json();
     } catch (error) {
-      console.error("Hata:", error);
+      console.error("Kayıt hatası:", error);
       throw error;
     }
   },

@@ -65,38 +65,36 @@ const authController = {
   },
 
   async login(req, res) {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
+    try {
+      // CORS başlıkları ekle
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+      res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-    req.on("end", async () => {
-      try {
-        const { username, password } = JSON.parse(body);
-        const user = await User.findOne({ where: { username } });
+      const { username, password } = req.body;
+      const user = await User.findOne({ where: { username } });
 
-        if (!user || !(await bcrypt.compare(password, user.password))) {
-          res.writeHead(401, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({ message: "Geçersiz kullanıcı adı veya şifre" })
-          );
-          return;
-        }
-
-        const token = jwt.sign(
-          { id: user.id, username: user.username },
-          process.env.JWT_SECRET || "gizli_anahtar",
-          { expiresIn: "24h" }
+      if (!user || !(await bcrypt.compare(password, user.password))) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({ message: "Geçersiz kullanıcı adı veya şifre" })
         );
-
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ token, username: user.username }));
-      } catch (error) {
-        console.error("Giriş hatası:", error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Giriş işlemi başarısız" }));
+        return;
       }
-    });
+
+      const token = jwt.sign(
+        { id: user.id, username: user.username },
+        process.env.JWT_SECRET || "gizli_anahtar",
+        { expiresIn: "24h" }
+      );
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ token, username: user.username }));
+    } catch (error) {
+      console.error("Giriş hatası:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Giriş işlemi başarısız" }));
+    }
   },
 
   async logout(req, res) {

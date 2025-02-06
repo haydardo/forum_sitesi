@@ -17,13 +17,14 @@ const formatDate = (dateString) => {
   try {
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return "Geçersiz tarih";
-    return new Intl.DateTimeFormat("tr-TR", {
+
+    return date.toLocaleString("tr-TR", {
       year: "numeric",
       month: "long",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
-    }).format(date);
+    });
   } catch (error) {
     console.error("Tarih formatlanırken hata:", error);
     return "Tarih hatası";
@@ -71,11 +72,51 @@ const createPostElement = (post) => {
       <small class="text-muted">${formatDate(post.created_at)}</small>
     </div>
     <p class="mb-1">${post.content}</p>
-    <small>
-      Yazar: ${authorName} | 
-      Kategori: ${categoryName}
-    </small>
+    <div class="d-flex justify-content-between align-items-center">
+      <small>
+        Yazar: ${authorName} | 
+        Kategori: ${categoryName}
+      </small>
+      <div class="d-flex align-items-center gap-2">
+        <button class="btn btn-sm btn-outline-primary like-button" data-post-id="${
+          post.id
+        }">
+          <i class="bi bi-heart${post.is_liked ? "-fill" : ""}"></i>
+          <span class="like-count">${post.like_count || 0}</span>
+          <span class="ms-1">Beğen</span>
+        </button>
+      </div>
+    </div>
   `;
+
+  // Beğeni butonu için event listener ekle
+  const likeButton = div.querySelector(".like-button");
+  likeButton.addEventListener("click", async (e) => {
+    e.preventDefault();
+    if (!localStorage.getItem("token")) {
+      alert("Beğenmek için giriş yapmalısınız!");
+      return;
+    }
+
+    try {
+      const response = await API.likePost(post.id);
+      const likeCount = likeButton.querySelector(".like-count");
+      const heartIcon = likeButton.querySelector("i");
+
+      likeCount.textContent = response.likeCount;
+
+      if (response.liked) {
+        heartIcon.classList.remove("bi-heart");
+        heartIcon.classList.add("bi-heart-fill");
+      } else {
+        heartIcon.classList.remove("bi-heart-fill");
+        heartIcon.classList.add("bi-heart");
+      }
+    } catch (error) {
+      console.error("Beğeni hatası:", error);
+      alert("Beğeni işlemi sırasında bir hata oluştu");
+    }
+  });
 
   return div;
 };

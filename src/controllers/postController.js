@@ -20,27 +20,31 @@ class PostController {
           },
         ],
         order: [["created_at", "DESC"]],
+        attributes: {
+          include: [
+            "id",
+            "title",
+            "content",
+            "created_at",
+            "updated_at",
+            "like_count",
+          ],
+        },
       });
+
       const formattedPosts = posts.map((post) => {
         const postJson = post.toJSON();
-        try {
-          return {
-            ...postJson,
-            created_at: postJson.created_at
-              ? new Date(postJson.created_at).toISOString()
-              : null,
-            updated_at: postJson.updated_at
-              ? new Date(postJson.updated_at).toISOString()
-              : null,
-          };
-        } catch (error) {
-          console.error("Tarih dönüştürme hatası:", error);
-          return {
-            ...postJson,
-            created_at: null,
-          };
-        }
+        return {
+          ...postJson,
+          created_at: postJson.created_at
+            ? new Date(postJson.created_at).toISOString()
+            : null,
+          updated_at: postJson.updated_at
+            ? new Date(postJson.updated_at).toISOString()
+            : null,
+        };
       });
+
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(formattedPosts));
     } catch (error) {
