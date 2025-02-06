@@ -68,7 +68,11 @@ const createPostElement = (post) => {
 
   div.innerHTML = `
     <div class="d-flex justify-content-between align-items-center">
-      <h5 class="mb-1">${post.title}</h5>
+      <h5 class="mb-1">
+        <a href="/posts/${post.id}" class="text-decoration-none">${
+    post.title
+  }</a>
+      </h5>
       <small class="text-muted">${formatDate(post.created_at)}</small>
     </div>
     <p class="mb-1">${post.content}</p>

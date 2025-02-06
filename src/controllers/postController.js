@@ -1,5 +1,13 @@
 const jwt = require("jsonwebtoken");
-const { Post, Like, User, sequelize, Category, Topic } = require("../models");
+const {
+  Post,
+  Like,
+  User,
+  sequelize,
+  Category,
+  Topic,
+  Comment,
+} = require("../models");
 const path = require("path");
 const fs = require("fs/promises");
 const { spawn } = require("child_process");
@@ -271,7 +279,8 @@ class PostController {
 
   async getPostById(req, res) {
     try {
-      const post = await Post.findByPk(req.params.id, {
+      const postId = req.params.id;
+      const post = await Post.findByPk(postId, {
         include: [
           {
             model: User,
@@ -284,6 +293,14 @@ class PostController {
             attributes: ["id", "name", "description"],
           },
         ],
+        attributes: [
+          "id",
+          "title",
+          "content",
+          "created_at",
+          "updated_at",
+          "like_count",
+        ],
       });
 
       if (!post) {
@@ -292,23 +309,108 @@ class PostController {
         return;
       }
 
-      // API isteği için JSON yanıt
-      if (req.headers.accept?.includes("application/json")) {
-        res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(post));
+      // API yanıtı için veriyi formatla
+      const formattedPost = {
+        ...post.toJSON(),
+        created_at: post.created_at
+          ? new Date(post.created_at).toISOString()
+          : null,
+        updated_at: post.updated_at
+          ? new Date(post.updated_at).toISOString()
+          : null,
+      };
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(formattedPost));
+    } catch (error) {
+      console.error("Gönderi detayı alınırken hata:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Gönderi detayları alınamadı" }));
+    }
+  }
+
+  async addComment(req, res) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Yetkilendirme gerekli" }));
+      return;
+    }
+
+    try {
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "gizli_anahtar"
+      );
+      const userId = decoded.id;
+      const postId = req.params.id;
+      const { content } = req.body;
+
+      // İçerik analizi için doğru formatta veri gönder
+      const contentAnalysis = await this.analyzeContent(content);
+      console.log("Yorum analiz sonucu:", contentAnalysis); // Debug için
+
+      if (!contentAnalysis.is_appropriate) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            message: "Yorum uygunsuz içerik içeriyor",
+            details: {
+              content: "Yorumunuzda uygunsuz kelimeler var",
+            },
+          })
+        );
         return;
       }
 
-      // HTML yanıt için template dosyasını serve et
-      const htmlFilePath = path.join(__dirname, "../../public/post.html");
-      const html = await fs.readFile(htmlFilePath, "utf-8");
+      const comment = await Comment.create({
+        content,
+        user_id: userId,
+        post_id: postId,
+      });
 
-      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-      res.end(html);
+      const commentWithUser = await Comment.findByPk(comment.id, {
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["username"],
+          },
+        ],
+      });
+
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(commentWithUser));
     } catch (error) {
-      console.error("Gönderi alınırken hata:", error);
+      console.error("Yorum ekleme hatası:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ message: "Gönderi alınamadı" }));
+      res.end(JSON.stringify({ message: "Yorum eklenirken bir hata oluştu" }));
+    }
+  }
+
+  // Yorumları getirme metodu
+  async getComments(req, res) {
+    try {
+      const postId = req.params.id;
+      const comments = await Comment.findAll({
+        where: { post_id: postId },
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["username"],
+          },
+        ],
+        order: [["created_at", "DESC"]],
+      });
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(comments));
+    } catch (error) {
+      console.error("Yorumları getirme hatası:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Yorumlar alınamadı" }));
     }
   }
 }
