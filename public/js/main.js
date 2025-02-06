@@ -163,7 +163,18 @@ const createPost = async (event) => {
     await loadPosts();
   } catch (error) {
     console.error("Gönderi oluşturulurken hata:", error);
-    alert("Gönderi oluşturulurken bir hata oluştu.");
+    if (error.response?.details) {
+      let errorMessage = "Uygunsuz İçerik Tespit Edildi:\n";
+      if (error.response.details.title) {
+        errorMessage += `- ${error.response.details.title}\n`;
+      }
+      if (error.response.details.content) {
+        errorMessage += `- ${error.response.details.content}`;
+      }
+      alert(errorMessage);
+    } else {
+      alert("Uygunsuz içerik tespit edildi. Lütfen içeriğinizi düzenleyin.");
+    }
   }
 };
 

@@ -15,10 +15,10 @@ module.exports = (sequelize, DataTypes) => {
         as: "parentCategory",
       });
 
-      // Post ile ilişki - burada alias'ı "Posts" olarak değiştiriyoruz
+      // Post ile ilişki - burada alias'ı "posts" olarak değiştiriyoruz
       Category.hasMany(models.Post, {
         foreignKey: "category_id",
-        as: "Posts", // "posts" yerine "Posts" kullanıyoruz
+        as: "posts",
       });
 
       // Konular ile ilişki

@@ -24,7 +24,7 @@ const categoryController = {
           },
           {
             model: Post,
-            as: "Posts",
+            as: "posts",
             attributes: ["id", "title", "content", "created_at"],
             include: [
               {
@@ -33,7 +33,7 @@ const categoryController = {
                 attributes: ["username"],
               },
             ],
-            order: [["createdAt", "DESC"]],
+            order: [["created_at", "DESC"]],
             separate: true,
           },
         ],
@@ -42,15 +42,28 @@ const categoryController = {
         },
         attributes: ["id", "name", "slug", "description"],
       });
-      created_at: postJson.created_at
-        ? new Date(postJson.created_at).toISOString()
-        : null;
-      updated_at: postJson.updated_at
-        ? new Date(postJson.updated_at).toISOString()
-        : null;
+
+      // Tarihleri formatla
+      const formattedCategories = categories.map((category) => {
+        const categoryJson = category.toJSON();
+        return {
+          ...categoryJson,
+          posts: categoryJson.posts?.map((post) => ({
+            ...post,
+            created_at: post.created_at
+              ? new Date(post.created_at).toISOString()
+              : null,
+          })),
+        };
+      });
+
       // Redis önbelleğe kaydet
       if (redisClient?.isOpen) {
-        await redisClient.setEx("categories", 3600, JSON.stringify(categories));
+        await redisClient.setEx(
+          "categories",
+          3600,
+          JSON.stringify(formattedCategories)
+        );
         console.log("Kategoriler önbelleğe kaydedildi");
       }
 
@@ -72,14 +85,44 @@ const categoryController = {
               .category-card {
                   transition: transform 0.2s;
                   margin-bottom: 20px;
+                  height: calc(100vh - 250px); /* Sabit yükseklik */
+                  display: flex;
+                  flex-direction: column;
               }
               .category-card:hover {
                   transform: translateY(-5px);
               }
-              .subcategory {
-                  margin-left: 20px;
-                  border-left: 3px solid #e9ecef;
-                  padding-left: 20px;
+              .category-card .card-body {
+                  display: flex;
+                  flex-direction: column;
+                  height: 100%;
+                  overflow: hidden;
+              }
+              .category-header {
+                  margin-bottom: 1rem;
+              }
+              .posts-container {
+                  flex: 1;
+                  overflow-y: auto;
+                  padding-right: 8px;
+              }
+              .list-group {
+                  margin-bottom: 0;
+              }
+              /* Scroll bar stilleri */
+              .posts-container::-webkit-scrollbar {
+                  width: 8px;
+              }
+              .posts-container::-webkit-scrollbar-track {
+                  background: #f1f1f1;
+                  border-radius: 4px;
+              }
+              .posts-container::-webkit-scrollbar-thumb {
+                  background: #888;
+                  border-radius: 4px;
+              }
+              .posts-container::-webkit-scrollbar-thumb:hover {
+                  background: #555;
               }
           </style>
       </head>
@@ -94,25 +137,27 @@ const categoryController = {
           <div class="container py-5">
               <h1 class="text-center mb-4">Forum Kategorileri</h1>
               <div class="row">
-                  ${categories
+                  ${formattedCategories
                     .map(
                       (category) => `
                       <div class="col-md-6">
                           <div class="card category-card shadow-sm">
                               <div class="card-body">
-                                  <h2 class="card-title h4">${
-                                    category.name
-                                  }</h2>
-                                  <p class="card-text text-muted">${
-                                    category.description
-                                  }</p>
+                                  <div class="category-header">
+                                      <h2 class="card-title h4">${
+                                        category.name
+                                      }</h2>
+                                      <p class="card-text text-muted">${
+                                        category.description
+                                      }</p>
+                                  </div>
                                   ${
-                                    category.Posts && category.Posts.length > 0
+                                    category.posts && category.posts.length > 0
                                       ? `
-                                      <div class="mt-3">
+                                      <div class="posts-container">
                                           <h3 class="h5 text-primary">Son Gönderiler</h3>
                                           <div class="list-group">
-                                              ${category.Posts.slice(0, 3)
+                                              ${category.posts
                                                 .map(
                                                   (post) => `
                                                   <div class="list-group-item">
@@ -123,18 +168,26 @@ const categoryController = {
                                                         0,
                                                         100
                                                       )}...</p>
-                                                      <small class="text-muted">Yazar: ${
-                                                        post.author
-                                                          ? post.author.username
-                                                          : "Anonim"
-                                                      }</small>
+                                                      <small class="text-muted">
+                                                          Yazar: ${
+                                                            post.author
+                                                              ? post.author
+                                                                  .username
+                                                              : "Anonim"
+                                                          } | 
+                                                          Tarih: ${new Date(
+                                                            post.created_at
+                                                          ).toLocaleString(
+                                                            "tr-TR"
+                                                          )}
+                                                      </small>
                                                   </div>
                                               `
                                                 )
                                                 .join("")}
                                           </div>
                                       </div>
-                                  `
+                                    `
                                       : '<p class="text-muted">Bu kategoride henüz gönderi bulunmuyor.</p>'
                                   }
                               </div>
@@ -238,6 +291,65 @@ const categoryController = {
       sendResponse(res, 200, { message: "Kategori başarıyla silindi" });
     } catch (error) {
       handleError(res, error);
+    }
+  },
+
+  async getCategoryPosts(req, res) {
+    try {
+      const categoryId = req.params.id;
+      const category = await Category.findByPk(categoryId, {
+        include: [
+          {
+            model: Post,
+            as: "posts",
+            include: [
+              {
+                model: User,
+                as: "author",
+                attributes: ["username"],
+              },
+            ],
+            order: [["created_at", "DESC"]],
+            attributes: {
+              include: [
+                "id",
+                "title",
+                "content",
+                "created_at",
+                "updated_at",
+                "like_count",
+              ],
+            },
+          },
+        ],
+      });
+
+      if (!category) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: "Kategori bulunamadı" }));
+        return;
+      }
+
+      // Gönderilerin tarihlerini formatla
+      const formattedCategory = {
+        ...category.toJSON(),
+        posts: category.posts.map((post) => ({
+          ...post,
+          created_at: post.created_at
+            ? new Date(post.created_at).toISOString()
+            : null,
+          updated_at: post.updated_at
+            ? new Date(post.updated_at).toISOString()
+            : null,
+        })),
+      };
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(formattedCategory));
+    } catch (error) {
+      console.error("Kategori gönderileri alınırken hata:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Kategori gönderileri alınamadı" }));
     }
   },
 };

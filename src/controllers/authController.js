@@ -5,63 +5,64 @@ const { Op } = require("sequelize");
 
 const authController = {
   async register(req, res) {
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
+    try {
+      const { username, email, password } = req.body;
 
-    req.on("end", async () => {
-      try {
-        const { username, email, password } = JSON.parse(body);
-
-        // Validasyon
-        if (!username || !email || !password) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ message: "Tüm alanlar zorunludur" }));
-          return;
-        }
-
-        // Kullanıcı adı veya email kontrolü
-        const existingUser = await User.findOne({
-          where: {
-            [Op.or]: [{ username }, { email }],
-          },
-        });
-
-        if (existingUser) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              message: "Bu kullanıcı adı veya email zaten kullanılıyor",
-            })
-          );
-          return;
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const user = await User.create({
-          username,
-          email,
-          password: hashedPassword,
-        });
-
-        res.writeHead(201, { "Content-Type": "application/json" });
+      // Validasyon
+      if (!username || !password || !email) {
+        res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
-            message: "Kayıt başarılı",
-            user: {
-              id: user.id,
-              username: user.username,
-              email: user.email,
-            },
+            message: "Kullanıcı adı, email ve şifre zorunludur",
           })
         );
-      } catch (error) {
-        console.error("Kayıt hatası:", error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Kayıt işlemi başarısız" }));
+        return;
       }
-    });
+
+      // Kullanıcı adı kontrolü
+      const existingUser = await User.findOne({
+        where: {
+          [Op.or]: [{ username }, { email }],
+        },
+      });
+
+      if (existingUser) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            message: "Bu kullanıcı adı veya email zaten kullanılıyor",
+          })
+        );
+        return;
+      }
+
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const user = await User.create({
+        username,
+        email,
+        password: hashedPassword,
+      });
+
+      // Token oluştur
+      const token = jwt.sign(
+        { id: user.id, username: user.username },
+        process.env.JWT_SECRET || "gizli_anahtar",
+        { expiresIn: "24h" }
+      );
+
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          message: "Kayıt başarılı",
+          token,
+          username: user.username,
+        })
+      );
+    } catch (error) {
+      console.error("Kayıt hatası:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Kayıt işlemi başarısız" }));
+    }
   },
 
   async login(req, res) {

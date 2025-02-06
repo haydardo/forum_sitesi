@@ -2,6 +2,7 @@ const jwt = require("jsonwebtoken");
 const { Post, Like, User, sequelize, Category, Topic } = require("../models");
 const path = require("path");
 const fs = require("fs/promises");
+const { spawn } = require("child_process");
 
 class PostController {
   async getAllPosts(req, res) {
@@ -54,6 +55,41 @@ class PostController {
     }
   }
 
+  // İçerik analizi için yardımcı fonksiyon
+  async analyzeContent(content) {
+    return new Promise((resolve, reject) => {
+      const python = spawn("python", ["python_scripts/content_analyzer.py"]);
+      let result = "";
+      let errorOutput = "";
+
+      python.stdin.write(JSON.stringify({ content }));
+      python.stdin.end();
+
+      python.stdout.on("data", (data) => {
+        result += data.toString();
+      });
+
+      python.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+        console.error("Python hatası:", errorOutput);
+      });
+
+      python.on("close", (code) => {
+        if (code !== 0) {
+          reject(new Error(`Python hatası: ${errorOutput}`));
+          return;
+        }
+        try {
+          const analysis = JSON.parse(result);
+          console.log("İçerik analizi sonucu:", analysis); // Debug için
+          resolve(analysis);
+        } catch (error) {
+          reject(error);
+        }
+      });
+    });
+  }
+
   async createPost(req, res) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -71,6 +107,32 @@ class PostController {
       const userId = decoded.id;
 
       const { title, content, categoryId } = req.body;
+      console.log("İçerik kontrolü başlıyor:", { title, content }); // Debug için
+
+      // Başlık ve içerik analizi
+      const titleAnalysis = await this.analyzeContent(title);
+      const contentAnalysis = await this.analyzeContent(content);
+
+      console.log("Analiz sonuçları:", { titleAnalysis, contentAnalysis }); // Debug için
+
+      if (!titleAnalysis.is_appropriate || !contentAnalysis.is_appropriate) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            error: "Uygunsuz içerik",
+            message: "Gönderi uygunsuz içerik içeriyor. Lütfen düzenleyin.",
+            details: {
+              title: titleAnalysis.has_bad_words
+                ? "Başlıkta uygunsuz kelimeler var"
+                : null,
+              content: contentAnalysis.has_bad_words
+                ? "İçerikte uygunsuz kelimeler var"
+                : null,
+            },
+          })
+        );
+        return;
+      }
 
       // Benzersiz slug oluştur
       const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");

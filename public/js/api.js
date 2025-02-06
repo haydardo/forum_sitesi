@@ -24,6 +24,7 @@ const API = {
         },
         body: JSON.stringify(postData),
       });
+
       const data = await response.json();
 
       if (!response.ok) {
@@ -31,9 +32,10 @@ const API = {
         error.response = data;
         throw error;
       }
+
       return data;
     } catch (error) {
-      console.error("Hata:", error);
+      console.error("Gönderi oluşturma hatası:", error);
       throw error;
     }
   },
@@ -74,14 +76,18 @@ const API = {
     }
   },
 
-  async register(username, password) {
+  async register(username, email, password) {
     try {
       const response = await fetch(`${this.baseUrl}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({
+          username,
+          email,
+          password,
+        }),
       });
 
       if (!response.ok) {

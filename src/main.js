@@ -122,9 +122,11 @@ const startApp = async () => {
               try {
                 if (body) {
                   req.body = JSON.parse(body);
+                  console.log("Gelen veri:", req.body); // Debug için
                 }
                 resolve();
               } catch (error) {
+                console.error("Body parsing hatası:", error); // Debug için
                 reject(error);
               }
             });
