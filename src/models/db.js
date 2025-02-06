@@ -18,7 +18,7 @@ const sequelize = new Sequelize(
 const initDb = async () => {
   try {
     await sequelize.authenticate();
-    await sequelize.sync({ force: false });
+    await sequelize.sync({ alter: true });
     console.log("Veritabanı bağlantısı ve senkronizasyonu başarılı");
   } catch (error) {
     console.error("Veritabanı başlatma hatası:", error);

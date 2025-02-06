@@ -1,8 +1,7 @@
-const { Post, User, Category, Topic, Like } = require("../models");
-const { spawn } = require("child_process");
 const jwt = require("jsonwebtoken");
+const { Post, Like, User, sequelize } = require("../models");
 
-const postController = {
+class PostController {
   async getAllPosts(req, res) {
     try {
       const posts = await Post.findAll({
@@ -12,111 +11,39 @@ const postController = {
             as: "author",
             attributes: ["username"],
           },
-          {
-            model: Category,
-            as: "category",
-            attributes: ["name"],
-          },
         ],
         order: [["created_at", "DESC"]],
       });
-
-      res.writeHead(200, {
-        "Content-Type": "application/json",
-        "Access-Control-Allow-Origin": "*",
+      const formattedPosts = posts.map((post) => {
+        const postJson = post.toJSON();
+        try {
+          return {
+            ...postJson,
+            created_at: postJson.created_at
+              ? new Date(postJson.created_at).toISOString()
+              : null,
+            updated_at: postJson.updated_at
+              ? new Date(postJson.updated_at).toISOString()
+              : null,
+          };
+        } catch (error) {
+          console.error("Tarih dönüştürme hatası:", error);
+          return {
+            ...postJson,
+            created_at: null,
+          };
+        }
       });
-      res.end(JSON.stringify(posts));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(formattedPosts));
     } catch (error) {
-      console.error("Post listeleme hatası:", error);
+      console.error("Gönderiler alınırken hata:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({ message: "Gönderiler listelenirken bir hata oluştu" })
-      );
+      res.end(JSON.stringify({ message: "Gönderiler alınamadı" }));
     }
-  },
+  }
 
   async createPost(req, res) {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ message: "Yetkilendirme gerekli" }));
-      return;
-    }
-
-    let body = "";
-    req.on("data", (chunk) => {
-      body += chunk.toString();
-    });
-
-    req.on("end", async () => {
-      try {
-        // Token'dan userId al
-        const token = authHeader.split(" ")[1];
-        const decoded = jwt.verify(
-          token,
-          process.env.JWT_SECRET || "gizli_anahtar"
-        );
-        const userId = decoded.id; // userId'yi token'dan alıyoruz
-
-        const { title, content, categoryId } = JSON.parse(body);
-
-        if (!title || !content || !categoryId) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({ message: "Başlık, içerik ve kategori zorunludur" })
-          );
-          return;
-        }
-
-        const analysisResult = await this.analyzeContent(content);
-        const titleAnalysisResult = await this.analyzeContent(title);
-
-        if (
-          !analysisResult.is_appropriate ||
-          !titleAnalysisResult.is_appropriate
-        ) {
-          res.writeHead(400, { "Content-Type": "application/json" });
-          res.end(
-            JSON.stringify({
-              message:
-                "Uygunsuz ifade kullandınız. Lütfen yasaklı kelimeler kullanmayın.",
-            })
-          );
-          return;
-        }
-
-        const topic = await Topic.create({
-          title,
-          content,
-          slug:
-            title.toLowerCase().replace(/[^a-z0-9]+/g, "-") + "-" + Date.now(),
-          category_id: categoryId,
-          user_id: userId, // Artık userId tanımlı
-        });
-
-        const post = await Post.create({
-          title,
-          content,
-          category_id: categoryId,
-          user_id: userId, // Artık userId tanımlı
-          topic_id: topic.id,
-          is_solution: false,
-          like_count: 0,
-        });
-
-        res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(post));
-      } catch (error) {
-        console.error("Post oluşturma hatası:", error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({ message: "Gönderi oluşturulurken bir hata oluştu" })
-        );
-      }
-    });
-  },
-
-  async likePost(req, res, postId) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
       res.writeHead(401, { "Content-Type": "application/json" });
@@ -132,51 +59,136 @@ const postController = {
       );
       const userId = decoded.id;
 
-      const like = await Like.create({
+      const { title, content, categoryId } = req.body;
+      const post = await Post.create({
+        title,
+        content,
         user_id: userId,
-        post_id: postId,
+        category_id: categoryId,
       });
 
-      const post = await Post.findByPk(postId);
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify(post));
+    } catch (error) {
+      console.error("Gönderi oluşturma hatası:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Gönderi oluşturulamadı" }));
+    }
+  }
+
+  async likePost(req, res) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Yetkilendirme gerekli" }));
+      return;
+    }
+
+    const transaction = await sequelize.transaction();
+
+    try {
+      const token = authHeader.split(" ")[1];
+      const decoded = jwt.verify(
+        token,
+        process.env.JWT_SECRET || "gizli_anahtar"
+      );
+      const userId = decoded.id;
+      const postId = req.params.id;
+
+      const existingLike = await Like.findOne({
+        where: {
+          user_id: userId,
+          post_id: postId,
+        },
+        transaction,
+      });
+
+      if (existingLike) {
+        const post = await Post.findByPk(postId, { transaction });
+        const currentLikeCount = post.like_count;
+
+        await existingLike.destroy({ transaction });
+        await post.update(
+          { like_count: Math.max(0, currentLikeCount - 1) },
+          { transaction }
+        );
+
+        await transaction.commit();
+
+        res.writeHead(200, { "Content-Type": "application/json" });
+        res.end(
+          JSON.stringify({
+            message: "Beğeni kaldırıldı",
+            liked: false,
+            likeCount: Math.max(0, currentLikeCount - 1),
+          })
+        );
+        return;
+      }
+
+      const [like, created] = await Like.findOrCreate({
+        where: {
+          user_id: userId,
+          post_id: postId,
+        },
+        transaction,
+      });
+
+      if (created) {
+        const post = await Post.findByPk(postId, { transaction });
+        await post.update(
+          { like_count: sequelize.literal("like_count + 1") },
+          { transaction }
+        );
+      }
+
+      const updatedPost = await Post.findByPk(postId, { transaction });
+      await transaction.commit();
+
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          message: "Gönderi beğenildi",
+          liked: true,
+          likeCount: updatedPost.like_count,
+        })
+      );
+    } catch (error) {
+      await transaction.rollback();
+      console.error("Beğeni hatası:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({ error: "Beğeni işlemi sırasında bir hata oluştu" })
+      );
+    }
+  }
+
+  async getPostById(req, res) {
+    try {
+      const post = await Post.findByPk(req.params.id, {
+        include: [
+          {
+            model: User,
+            as: "author",
+            attributes: ["username"],
+          },
+        ],
+      });
+
+      if (!post) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: "Gönderi bulunamadı" }));
+        return;
+      }
+
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(post));
     } catch (error) {
-      console.error("Beğeni hatası:", error);
+      console.error("Gönderi alınırken hata:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ message: "Beğeni işlemi başarısız oldu" }));
+      res.end(JSON.stringify({ message: "Gönderi alınamadı" }));
     }
-  },
+  }
+}
 
-  async analyzeContent(content) {
-    return new Promise((resolve, reject) => {
-      const python = spawn("python", ["python_scripts/content_analyzer.py"]);
-      let result = "";
-      let errorOutput = "";
-
-      python.stdout.on("data", (data) => {
-        result += data.toString();
-      });
-
-      python.stderr.on("data", (data) => {
-        errorOutput += data.toString();
-      });
-
-      python.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`Python hatası: ${errorOutput}`));
-          return;
-        }
-        try {
-          resolve(JSON.parse(result));
-        } catch (error) {
-          reject(new Error("Python çıktısı JSON formatında değil"));
-        }
-      });
-
-      python.stdin.write(JSON.stringify({ content }));
-      python.stdin.end();
-    });
-  },
-};
-
-module.exports = postController;
+module.exports = new PostController();

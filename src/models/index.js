@@ -3,6 +3,7 @@ const path = require("path");
 const Sequelize = require("sequelize");
 const config = require("../../config/config.json")["development"];
 const db = {};
+
 //Bütün modelleri burada toplayıp, ilişki kuruyoruz. Dairesel bağımlılık oluşturmamak için.
 const sequelize = new Sequelize(
   config.database,

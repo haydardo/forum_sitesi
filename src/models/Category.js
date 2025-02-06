@@ -5,21 +5,20 @@ module.exports = (sequelize, DataTypes) => {
   class Category extends Model {
     static associate(models) {
       // Alt kategoriler için self-referential ilişki
-      Category.hasMany(models.Category, {
-        //Bir kategorinin birden fazla alt kategorisi olabilir.
-        as: "subCategories",
+      Category.hasMany(Category, {
         foreignKey: "parent_id",
-        useJunctionTable: false,
-      });
-      Category.hasMany(models.Post, {
-        foreignKey: "category_id",
-        as: "Posts",
+        as: "subCategories",
       });
 
-      Category.belongsTo(models.Category, {
-        as: "parent",
+      Category.belongsTo(Category, {
         foreignKey: "parent_id",
-        useJunctionTable: false, //Çoka çok ilişki için kullanılır.
+        as: "parentCategory",
+      });
+
+      // Post ile ilişki - burada alias'ı "Posts" olarak değiştiriyoruz
+      Category.hasMany(models.Post, {
+        foreignKey: "category_id",
+        as: "Posts", // "posts" yerine "Posts" kullanıyoruz
       });
 
       // Konular ile ilişki
@@ -32,6 +31,11 @@ module.exports = (sequelize, DataTypes) => {
 
   Category.init(
     {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
       name: {
         type: DataTypes.STRING,
         allowNull: false,
@@ -63,9 +67,9 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: "Category",
-      tableName: "Categories",
-      underscored: true,
+      tableName: "categories",
       timestamps: true,
+      underscored: true,
     }
   );
 

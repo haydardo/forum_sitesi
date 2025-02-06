@@ -39,8 +39,21 @@ module.exports = (sequelize, DataTypes) => {
 
   Post.init(
     {
+      id: {
+        type: DataTypes.INTEGER,
+        primaryKey: true,
+        autoIncrement: true,
+      },
+      title: {
+        type: DataTypes.STRING,
+        allowNull: false,
+      },
       content: {
         type: DataTypes.TEXT,
+        allowNull: false,
+      },
+      category_id: {
+        type: DataTypes.INTEGER,
         allowNull: false,
       },
       user_id: {
@@ -63,16 +76,15 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.INTEGER,
         defaultValue: 0,
       },
-      title: {
-        type: DataTypes.STRING,
-        allowNull: false,
-      },
     },
     {
       sequelize,
       modelName: "Post",
       tableName: "posts",
+      timestamps: true,
       underscored: true,
+      createdAt: "created_at",
+      updatedAt: "updated_at",
       hooks: {
         afterCreate: async (post) => {
           await sequelize.models.Topic.update(
@@ -83,5 +95,10 @@ module.exports = (sequelize, DataTypes) => {
       },
     }
   );
+
+  const attributes = Post.getAttributes();
+  delete attributes.created_at;
+  delete attributes.updated_at;
+
   return Post;
 };

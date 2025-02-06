@@ -25,7 +25,7 @@ const categoryController = {
           {
             model: Post,
             as: "Posts",
-            attributes: ["id", "title", "content", "createdAt"],
+            attributes: ["id", "title", "content", "created_at"],
             include: [
               {
                 model: User,
@@ -42,7 +42,12 @@ const categoryController = {
         },
         attributes: ["id", "name", "slug", "description"],
       });
-
+      created_at: postJson.created_at
+        ? new Date(postJson.created_at).toISOString()
+        : null;
+      updated_at: postJson.updated_at
+        ? new Date(postJson.updated_at).toISOString()
+        : null;
       // Redis önbelleğe kaydet
       if (redisClient?.isOpen) {
         await redisClient.setEx("categories", 3600, JSON.stringify(categories));
@@ -51,7 +56,7 @@ const categoryController = {
 
       // İstek tipine göre yanıt
       if (req.headers.accept?.includes("application/json")) {
-        return sendResponse(res, 200, categories);
+        return sendResponse(res, 200, formattedCategories);
       }
 
       // HTML template render
