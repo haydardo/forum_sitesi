@@ -1,4 +1,4 @@
-from textblob import TextBlob # Metin analizi için kullanılır
+from textblob import TextBlob # Metin analizi için kullanılır. Blob, metin,resim,video gibi büyük verileri tutuyor.
 import json
 import sys # Standart giriş/çıkış işlemleri için kullanılır
 

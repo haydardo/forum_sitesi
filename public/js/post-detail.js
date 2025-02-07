@@ -109,9 +109,39 @@ document.addEventListener("DOMContentLoaded", async () => {
 
         if (!response.ok) throw new Error("Yorum gönderilemedi");
 
-        // Formu temizle ve yorumları yeniden yükle
+        const newComment = await response.json();
+
+        // Yeni yorumu hemen göster
+        const commentsContainer = document.getElementById("comments-container");
+        const commentElement = document.createElement("div");
+        commentElement.classList.add("comment", "mb-3", "p-3", "border-bottom");
+        commentElement.innerHTML = `
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="comment-author">
+              <i class="bi bi-person-circle"></i>
+              <strong>${localStorage.getItem("username") || "Anonim"}</strong>
+            </div>
+            <small class="text-muted">
+              ${new Date().toLocaleString("tr-TR")}
+            </small>
+          </div>
+          <div class="comment-content">
+            ${commentContent}
+          </div>
+        `;
+
+        // Yeni yorumu en üste ekle
+        if (commentsContainer.firstChild) {
+          commentsContainer.insertBefore(
+            commentElement,
+            commentsContainer.firstChild
+          );
+        } else {
+          commentsContainer.appendChild(commentElement);
+        }
+
+        // Formu temizle
         commentForm.reset();
-        await loadComments();
       } catch (error) {
         console.error("Yorum gönderme hatası:", error);
         alert("Yorum gönderilirken bir hata oluştu");

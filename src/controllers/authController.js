@@ -84,7 +84,7 @@ const authController = {
       }
 
       const token = jwt.sign(
-        { id: user.id, username: user.username },
+        { id: user.id, username: user.username }, //JWT Payload
         process.env.JWT_SECRET || "gizli_anahtar",
         { expiresIn: "24h" }
       );

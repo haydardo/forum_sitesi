@@ -34,7 +34,7 @@ const categoryController = {
               },
             ],
             order: [["created_at", "DESC"]],
-            separate: true,
+            separate: true, // Önce postları getirir sonra ona ait kategorileri getirir.
           },
         ],
         where: {
@@ -45,6 +45,7 @@ const categoryController = {
 
       // Tarihleri formatla
       const formattedCategories = categories.map((category) => {
+        //elemanları tek tek işler ve yeni bir dizi oluşturur.
         const categoryJson = category.toJSON();
         return {
           ...categoryJson,
