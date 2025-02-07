@@ -82,13 +82,18 @@ async function postRoutes(req, res) {
         }
         break;
       case "POST":
-        if (url.match(/\/api\/posts\/\d+\/like/)) {
+        if (url.match(/\/api\/posts\/\d+\/comments/)) {
+          const postId = url.split("/")[3];
+          req.params = { id: postId };
+          await postController.addComment(req, res);
+        } else if (url.match(/\/api\/posts\/\d+\/like/)) {
           const postId = url.split("/")[3];
           req.params = { id: postId };
           await postController.likePost(req, res);
         } else {
           await postController.createPost(req, res);
         }
+        break;
         break;
       case "OPTIONS":
         res.writeHead(200, {

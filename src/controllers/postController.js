@@ -70,7 +70,11 @@ class PostController {
       let result = "";
       let errorOutput = "";
 
-      python.stdin.write(JSON.stringify({ content }));
+      // Debug için
+      console.log("Python'a gönderilen içerik:", content);
+
+      // Veriyi doğru formatta gönder
+      python.stdin.write(JSON.stringify({ content: content || "" }));
       python.stdin.end();
 
       python.stdout.on("data", (data) => {
@@ -83,16 +87,17 @@ class PostController {
       });
 
       python.on("close", (code) => {
-        if (code !== 0) {
-          reject(new Error(`Python hatası: ${errorOutput}`));
-          return;
-        }
         try {
           const analysis = JSON.parse(result);
-          console.log("İçerik analizi sonucu:", analysis); // Debug için
+          if (analysis.error) {
+            reject(new Error(analysis.error));
+            return;
+          }
           resolve(analysis);
         } catch (error) {
-          reject(error);
+          reject(
+            new Error(`Python analiz hatası: ${errorOutput || error.message}`)
+          );
         }
       });
     });
@@ -117,22 +122,38 @@ class PostController {
       const { title, content, categoryId } = req.body;
       console.log("İçerik kontrolü başlıyor:", { title, content }); // Debug için
 
+      if (title) {
+        const titleAnalysis = await this.analyzeContent(title);
+
+        if (!titleAnalysis.is_appropriate) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(
+            JSON.stringify({
+              error: "Uygunsuz içerik",
+              message: "Gönderi uygunsuz içerik içeriyor. Lütfen düzenleyin.",
+              details: {
+                title: titleAnalysis.has_bad_words
+                  ? "Başlıkta uygunsuz kelimeler var"
+                  : null,
+              },
+            })
+          );
+          return;
+        }
+      }
+
       // Başlık ve içerik analizi
-      const titleAnalysis = await this.analyzeContent(title);
       const contentAnalysis = await this.analyzeContent(content);
 
-      console.log("Analiz sonuçları:", { titleAnalysis, contentAnalysis }); // Debug için
+      console.log("Analiz sonuçları:", { contentAnalysis }); // Debug için
 
-      if (!titleAnalysis.is_appropriate || !contentAnalysis.is_appropriate) {
+      if (!contentAnalysis.is_appropriate) {
         res.writeHead(400, { "Content-Type": "application/json" });
         res.end(
           JSON.stringify({
             error: "Uygunsuz içerik",
             message: "Gönderi uygunsuz içerik içeriyor. Lütfen düzenleyin.",
             details: {
-              title: titleAnalysis.has_bad_words
-                ? "Başlıkta uygunsuz kelimeler var"
-                : null,
               content: contentAnalysis.has_bad_words
                 ? "İçerikte uygunsuz kelimeler var"
                 : null,
@@ -143,9 +164,9 @@ class PostController {
       }
 
       // Benzersiz slug oluştur
-      const baseSlug = title.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      const baseSlug = title?.toLowerCase().replace(/[^a-z0-9]+/g, "-");
       const timestamp = Date.now();
-      const uniqueSlug = `${baseSlug}-${timestamp}`;
+      const uniqueSlug = `${baseSlug || "default"}-${timestamp}`;
 
       // Yeni bir topic oluştur
       const topic = await Topic.create({

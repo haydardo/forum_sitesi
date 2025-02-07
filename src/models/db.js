@@ -28,7 +28,6 @@ const initDb = async () => {
 
 const seedDb = async () => {
   try {
-    // Test kullanıcısı oluştur
     const { User } = require("./index");
     const bcrypt = require("bcrypt");
 
