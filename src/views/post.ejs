@@ -9,21 +9,22 @@
         <!-- Yorumlar bölümü -->
         <div class="comments-section">
             <h3>Yorumlar</h3>
-            <form id="commentForm">
-                <textarea name="comment" required placeholder="Yorumunuzu yazın..."></textarea>
-                <button type="submit">Yorum Yap</button>
-            </form>
             <div class="comments-list">
-                <% comments.forEach(comment => { %>
+                <% post.comments.forEach(comment => { %>
                     <div class="comment">
                         <div class="comment-header">
-                            <span class="comment-author"><%= comment.author || 'Misafir' %></span>
+                            <span class="comment-author"><%= comment.author.username %></span>
                             <span class="comment-date"><%= comment.createdAt.toLocaleString() %></span>
                         </div>
                         <div class="comment-content"><%= comment.content %></div>
                     </div>
-                <% }) %>
+                <% }); %>
             </div>
+            
+            <form id="commentForm">
+                <textarea name="comment" required></textarea>
+                <button type="submit">Yorum Ekle</button>
+            </form>
         </div>
     </div>
     

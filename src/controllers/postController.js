@@ -304,6 +304,17 @@ class PostController {
       const post = await Post.findByPk(postId, {
         include: [
           {
+            model: Comment,
+            as: "comments",
+            include: [
+              {
+                model: User,
+                as: "author",
+                attributes: ["username"],
+              },
+            ],
+          },
+          {
             model: User,
             as: "author",
             attributes: ["username"],

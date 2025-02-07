@@ -14,7 +14,10 @@ module.exports = (sequelize, DataTypes) => {
         foreignKey: "user_id",
         as: "author",
       });
-
+      Post.hasMany(models.Comment, {
+        foreignKey: "post_id",
+        as: "comments",
+      });
       // Alt mesajlar için self-referential ilişki
       Post.hasMany(models.Post, {
         foreignKey: "parent_id",
