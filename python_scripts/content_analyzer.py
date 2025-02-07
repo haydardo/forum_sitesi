@@ -28,6 +28,7 @@ class ContentAnalyzer:
             'word_count': len(text.split()), # Kelime sayısı
             'char_count': len(text), # Karakter sayısı
             'has_bad_words': any(word in text_lower for word in self.bad_words), # Yasaklı kelimelerin varlığı
+            
             'sentiment': blob.sentiment.polarity, # Duygu analizi -1 ile 1 arası bir değer döndürür.
             'is_appropriate': True # Varsayılan uygunluk
         }
