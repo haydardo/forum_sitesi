@@ -45,10 +45,41 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Kategori bilgilerini göster
     if (post.category) {
       categoryInfo.innerHTML = `
-        <h5 class="card-title">${post.category.name}</h5>
-        <p class="card-text text-muted">${
-          post.category.description || "Bu kategori için açıklama bulunmuyor."
-        }</p>
+        <div class="card-body">
+          <h5 class="card-title">${post.category.name}</h5>
+          <p class="card-text">${
+            post.category.description || "Açıklama bulunmuyor"
+          }</p>
+          <div class="category-posts mt-3">
+            <h6>Bu Kategorideki Diğer Gönderiler</h6>
+            <div class="list-group" style="max-height: 300px; overflow-y: auto;">
+              ${
+                post.category.posts
+                  ? post.category.posts
+                      .map(
+                        (categoryPost) => `
+                  <a href="/posts/${
+                    categoryPost.id
+                  }" class="list-group-item list-group-item-action">
+                    <div class="d-flex justify-content-between">
+                      <h6 class="mb-1">${categoryPost.title}</h6>
+                      <small>${new Date(categoryPost.created_at).toLocaleString(
+                        "tr-TR"
+                      )}</small>
+                    </div>
+                    <p class="mb-1">${categoryPost.content.substring(
+                      0,
+                      100
+                    )}...</p>
+                  </a>
+                `
+                      )
+                      .join("")
+                  : '<p class="text-muted">Bu kategoride henüz gönderi bulunmuyor.</p>'
+              }
+            </div>
+          </div>
+        </div>
       `;
     } else {
       categoryInfo.innerHTML =
@@ -170,22 +201,30 @@ async function loadComments() {
       ? comments
           .map(
             (comment) => `
-          <div class="comment mb-3">
-            <div class="d-flex justify-content-between">
-              <strong>${comment.author?.username || "Anonim"}</strong>
-              <small class="text-muted">${new Date(
-                comment.created_at
-              ).toLocaleString("tr-TR")}</small>
+          <div class="comment mb-3 p-3 border-bottom">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+              <div class="comment-author">
+                <i class="bi bi-person-circle"></i>
+                <strong>${comment.author?.username || "Anonim"}</strong>
+              </div>
+              <small class="text-muted">
+                ${new Date(comment.created_at).toLocaleString("tr-TR")}
+              </small>
             </div>
-            <p class="mb-0">${comment.content}</p>
+            <div class="comment-content">
+              ${comment.content}
+            </div>
           </div>
         `
           )
           .join("")
-      : '<p class="text-muted">Henüz yorum yapılmamış.</p>';
+      : '<div class="text-muted">Henüz yorum yapılmamış</div>';
   } catch (error) {
-    console.error("Yorumlar yüklenirken hata:", error);
-    commentsContainer.innerHTML =
-      '<div class="alert alert-danger">Yorumlar yüklenirken bir hata oluştu.</div>';
+    console.error("Yorumları yükleme hatası:", error);
+    commentsContainer.innerHTML = `
+      <div class="alert alert-danger">
+        Yorumlar yüklenirken bir hata oluştu
+      </div>
+    `;
   }
 }

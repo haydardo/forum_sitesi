@@ -39,38 +39,53 @@
 
     <main class="container py-4">
         <div class="row">
-            <!-- Sol taraf: Gönderi ve yorumlar -->
+            <!-- Sol taraf: Gönderi detayı ve yorum formu -->
             <div class="col-md-8">
+                <!-- Gönderi detayı -->
                 <div class="card mb-4" id="post-detail">
                     <!-- Gönderi detayı buraya gelecek -->
                 </div>
-
+                
+                <!-- Yorum ekleme formu -->
                 <div class="card">
                     <div class="card-header">
-                        <h5 class="mb-0">Yorumlar</h5>
+                        <h5 class="mb-0">Yorum Ekle</h5>
                     </div>
                     <div class="card-body">
-                        <form id="comment-form" class="mb-4">
-                            <div class="mb-3">
-                                <textarea class="form-control" id="comment-content" rows="3" placeholder="Yorumunuzu yazın..."></textarea>
+                        <form id="comment-form">
+                            <div class="form-group">
+                                <textarea id="comment-content" class="form-control" rows="3" placeholder="Yorumunuzu yazın..." required></textarea>
                             </div>
-                            <button type="submit" class="btn btn-primary">Yorum Yap</button>
+                            <button type="submit" class="btn btn-primary mt-2">Yorum Ekle</button>
                         </form>
-                        <div id="comments-container">
-                            <!-- Yorumlar buraya gelecek -->
-                        </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Sağ taraf: Kategori bilgileri -->
+            <!-- Sağ taraf: Kategori bilgileri ve gönderiler -->
             <div class="col-md-4">
-                <div class="card">
+                <!-- Kategori bilgileri -->
+                <div class="card mb-4">
                     <div class="card-header">
                         <h5 class="mb-0">Kategori Bilgileri</h5>
                     </div>
                     <div class="card-body" id="category-info">
                         <!-- Kategori bilgileri buraya gelecek -->
+                    </div>
+                </div>
+
+                <!-- Kategorideki diğer gönderiler -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0">Bu Kategorideki Diğer Gönderiler</h5>
+                    </div>
+                    <div class="card-body">
+                        <div id="category-posts" class="list-group">
+                            <!-- Kategorideki diğer gönderiler buraya dinamik olarak eklenecek -->
+                        </div>
+                        <div id="comments-container" class="comments-list mt-4">
+                            <!-- Yorumlar/postlar buraya dinamik olarak eklenecek -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -81,4 +96,4 @@
     <script src="/js/api.js"></script>
     <script src="/js/post-detail.js"></script>
 </body>
-</html> 
+</html>

@@ -44,7 +44,31 @@ nav {
     background-color: #555;
     border-radius: 4px;
 }
-
+.comments-list {
+   overflow-y: auto;
+   max-height: 400px;
+  }
+  
+  .comments-list::-webkit-scrollbar {
+    width: 8px;
+  }
+  
+  .comments-list::-webkit-scrollbar-track {
+    background: #f8f9fa;
+  }
+  
+  .comments-list::-webkit-scrollbar-thumb {
+    background-color: #6c757d;
+    border-radius: 4px;
+  }
+  
+  .comment {
+    transition: background-color 0.2s;
+  }
+  
+  .comment:hover {
+    background-color: #f8f9fa;
+  }
 .auth-links {
     display: flex;
     gap: 1rem;
@@ -133,4 +157,9 @@ button:hover {
 .active {
     background-color: #555;
     border-radius: 4px;
+}
+
+#category-posts {
+    max-height: 400px;
+    overflow-y: auto;
 } 
