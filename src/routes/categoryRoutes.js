@@ -1,7 +1,7 @@
-const { Category, Post, User } = require("../models");
-const categoryController = require("../controllers/categoryController");
-const path = require("path");
-const fs = require("fs").promises;
+import categoryController from "../controllers/categoryController.js";
+import { Category, Post, User } from "../models/index.js";
+import path from "path";
+import { promises as fs } from "fs";
 
 // Kategorileri önbellekten veya veritabanından getir
 async function getCategoriesWithCache(redisClient) {
@@ -74,7 +74,7 @@ async function getCategoriesWithCache(redisClient) {
   }
 }
 
-async function categoryRoutes(req, res, redisClient) {
+export const categoryRoutes = async (req, res, redisClient) => {
   const method = req.method;
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = url.pathname;
@@ -119,6 +119,6 @@ async function categoryRoutes(req, res, redisClient) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ message: "Sunucu hatası", error: error.message }));
   }
-}
+};
 
-module.exports = categoryRoutes;
+export default categoryRoutes;

@@ -4,9 +4,10 @@
   "version": "1.0.0",
   "description": "Forum sistemi projesi",
   "main": "src/main.js",
+  "type": "module",
   "scripts": {
     "start": "node src/main.js",
-    "dev": "nodemon src/main.js",
+    "dev": "nodemon",
     "migrate": "sequelize-cli db:migrate",
     "migrate:undo": "sequelize-cli db:migrate:undo",
     "migrate:undo:all": "sequelize-cli db:migrate:undo:all"

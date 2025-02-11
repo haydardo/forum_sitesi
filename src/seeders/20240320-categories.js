@@ -1,6 +1,6 @@
 "use strict";
 
-module.exports = {
+export default {
   async up(queryInterface, Sequelize) {
     // Önce ana kategorileri ekle
     const mainCategories = await queryInterface.bulkInsert(

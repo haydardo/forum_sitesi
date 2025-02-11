@@ -1,21 +1,31 @@
-const { Sequelize } = require("sequelize");
-const config = require("../../config/config.json")["development"];
-const { Category } = require("./index");
+import { Sequelize } from "sequelize";
+import { readFile } from "fs/promises";
+import { fileURLToPath } from "url";
+import path from "path";
+import db from "../src/models/index.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// JSON dosyasını oku
+const configPath = path.resolve(__dirname, "../config/config.json");
+const configJson = JSON.parse(await readFile(configPath, "utf8"));
+const development = configJson.development;
 
 const sequelize = new Sequelize(
-  config.database,
-  config.username,
-  config.password,
+  development.database,
+  development.username,
+  development.password,
   {
-    host: config.host,
-    dialect: config.dialect,
-    port: config.port,
-    timezone: config.timezone,
+    host: development.host,
+    dialect: development.dialect,
+    port: development.port,
+    timezone: development.timezone,
     logging: false,
   }
 );
 
-const initDb = async () => {
+export const initDb = async () => {
   try {
     await sequelize.authenticate();
     await sequelize.sync({ alter: true });
@@ -26,10 +36,13 @@ const initDb = async () => {
   }
 };
 
-const seedDb = async () => {
+export const seedDb = async () => {
   try {
-    const { User } = require("./index");
-    const bcrypt = require("bcrypt");
+    //const { User } = require("./index");
+    //const bcrypt = require("bcrypt");
+
+    // Category'yi db'den alıyoruz
+    const Category = db.Category;
 
     // Ana kategorileri ekle
     const [generalCategory] = await Category.findOrCreate({
@@ -64,8 +77,4 @@ const seedDb = async () => {
   }
 };
 
-module.exports = {
-  sequelize,
-  initDb,
-  seedDb,
-};
+export default sequelize;

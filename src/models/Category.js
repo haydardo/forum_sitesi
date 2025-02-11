@@ -1,7 +1,7 @@
 "use strict";
-const { Model } = require("sequelize");
+import { Model } from "sequelize";
 
-module.exports = (sequelize, DataTypes) => {
+export default (sequelize, DataTypes) => {
   class Category extends Model {
     static associate(models) {
       // Alt kategoriler için self-referential ilişki

@@ -1,6 +1,6 @@
-const authController = require("../controllers/authController");
+import authController from "../controllers/authController.js";
 
-async function authRoutes(req, res) {
+export const authRoutes = async (req, res) => {
   const method = req.method;
   const url = req.url;
 
@@ -24,6 +24,6 @@ async function authRoutes(req, res) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ message: "Sunucu hatası" }));
   }
-}
+};
 
-module.exports = authRoutes;
+export default authRoutes;

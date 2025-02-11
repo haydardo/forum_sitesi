@@ -1,12 +1,16 @@
-const http = require("http");
-const path = require("path");
-const fs = require("fs");
-const url = require("url");
-const Redis = require("ioredis");
-const { initDb, seedDb } = require("./models/db");
-const authRoutes = require("./routes/authRoutes");
-const postRoutes = require("./routes/postRoutes");
-const categoryRoutes = require("./routes/categoryRoutes");
+import http from "http";
+import { Redis } from "ioredis";
+import { fileURLToPath } from "url";
+import path from "path";
+import fs from "fs";
+import url from "url";
+import { initDb, seedDb } from "../utilities/db.js";
+import { authRoutes } from "./routes/authRoutes.js";
+import { postRoutes } from "./routes/postRoutes.js";
+import { categoryRoutes } from "./routes/categoryRoutes.js";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Redis bağlantısı
 const redisClient = new Redis();

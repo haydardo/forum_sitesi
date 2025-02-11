@@ -1,16 +1,7 @@
-const jwt = require("jsonwebtoken");
-const {
-  Post,
-  Like,
-  User,
-  sequelize,
-  Category,
-  Topic,
-  Comment,
-} = require("../models");
-const path = require("path");
-const fs = require("fs/promises");
-const { spawn } = require("child_process");
+import jwt from "jsonwebtoken";
+import { Post, User, Category, Topic, Comment, Like } from "../models/index.js";
+import { spawn } from "child_process";
+import { Op } from "sequelize";
 
 class PostController {
   async getAllPosts(req, res) {
@@ -447,4 +438,5 @@ class PostController {
   }
 }
 
-module.exports = new PostController();
+const postController = new PostController();
+export default postController;

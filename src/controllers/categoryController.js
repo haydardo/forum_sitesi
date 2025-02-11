@@ -1,5 +1,5 @@
-const { Category, Post, User } = require("../models");
-const url = require("url");
+import { Category, Post, User } from "../models/index.js";
+import { URL } from "url";
 
 const categoryController = {
   // Tüm kategorileri getir
@@ -378,4 +378,4 @@ function handleError(res, error) {
   sendResponse(res, statusCode, { message });
 }
 
-module.exports = categoryController;
+export default categoryController;

@@ -1,0 +1,5 @@
+{
+    "exec": "node --experimental-modules src/main.js",
+    "watch": ["src"],
+    "ext": "js,mjs,json"
+  }

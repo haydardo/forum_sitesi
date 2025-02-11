@@ -1,7 +1,7 @@
-const { Post, User, Category, Topic } = require("../models");
-const jwt = require("jsonwebtoken");
-const { spawn } = require("child_process");
-const postController = require("../controllers/postController");
+import postController from "../controllers/postController.js";
+import { Post, User, Category, Topic } from "../models/index.js";
+import jwt from "jsonwebtoken";
+import { spawn } from "child_process";
 
 async function analyzeContent(content) {
   return new Promise((resolve, reject) => {
@@ -66,7 +66,7 @@ async function handleGetRequest(req, res) {
   }
 }
 
-async function postRoutes(req, res) {
+export const postRoutes = async (req, res) => {
   const method = req.method;
   const url = req.url;
 
@@ -94,7 +94,6 @@ async function postRoutes(req, res) {
           await postController.createPost(req, res);
         }
         break;
-        break;
       case "OPTIONS":
         res.writeHead(200, {
           "Access-Control-Allow-Origin": "*",
@@ -112,6 +111,6 @@ async function postRoutes(req, res) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ message: "Sunucu hatası" }));
   }
-}
+};
 
-module.exports = postRoutes;
+export default postRoutes;
