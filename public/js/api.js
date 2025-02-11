@@ -1,6 +1,4 @@
 const API = {
-  baseUrl: "http://localhost:3001/api",
-
   //Wrapper ile bütün api işlemleri tek bir yerde yönetilebilir.
   // Gönderiler
   getPosts: async () => {
@@ -53,7 +51,7 @@ const API = {
   // Kullanıcı işlemleri
   async login(username, password) {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/login`, {
+      const response = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -78,7 +76,7 @@ const API = {
 
   async register(username, email, password) {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/register`, {
+      const response = await fetch(`/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

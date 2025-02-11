@@ -2,13 +2,15 @@ import { Sequelize } from "sequelize";
 import { readFile } from "fs/promises";
 import { fileURLToPath } from "url";
 import path from "path";
-import db from "../src/models/index.js";
+import { dirname } from "path";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const __dirname = dirname(__filename);
 
-// JSON dosyasını oku
-const configPath = path.resolve(__dirname, "../config/config.json");
+// Göreceli yolları kullan
+const configPath = path.join(__dirname, "..", "..", "config", "config.json");
+
+// Config dosyasını oku
 const configJson = JSON.parse(await readFile(configPath, "utf8"));
 const development = configJson.development;
 
@@ -25,6 +27,10 @@ const sequelize = new Sequelize(
   }
 );
 
+// Models'ı doğrudan import et
+import models from "../models/index.js";
+const db = models;
+
 export const initDb = async () => {
   try {
     await sequelize.authenticate();
@@ -35,7 +41,7 @@ export const initDb = async () => {
     throw error;
   }
 };
-
+export { sequelize };
 export const seedDb = async () => {
   try {
     //const { User } = require("./index");

@@ -28,12 +28,12 @@ const sequelize = new Sequelize(
   }
 );
 
-// Model yükleme kısmı - User modelini doğrudan db'ye ekle
-const userModelPath = path.join(__dirname, "User.js");
+// Model yükleme işlemini düzelt
+const userModelPath = new URL("./User.js", import.meta.url);
 const { default: userModel } = await import(userModelPath);
 db.User = userModel(sequelize, Sequelize.DataTypes);
 
-// Tüm modelleri dinamik olarak yükle
+// Diğer modelleri yükle
 const files = fs.readdirSync(__dirname);
 for (const file of files) {
   if (
@@ -43,8 +43,8 @@ for (const file of files) {
     file.slice(-3) === ".js" &&
     file.indexOf(".test.js") === -1
   ) {
-    const modelPath = path.join(__dirname, file);
-    const { default: modelDefiner } = await import(modelPath);
+    const modelUrl = new URL(`./${file}`, import.meta.url);
+    const { default: modelDefiner } = await import(modelUrl);
     if (typeof modelDefiner === "function") {
       const model = modelDefiner(sequelize, Sequelize.DataTypes);
       db[model.name] = model;

@@ -1,5 +1,5 @@
 {
-    "exec": "node --experimental-modules src/main.js",
-    "watch": ["src"],
-    "ext": "js,mjs,json"
-  }
+  "watch": ["src/"],
+  "ext": "js,json",
+  "ignore": ["node_modules/*"]
+}

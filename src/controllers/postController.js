@@ -1,7 +1,6 @@
 import jwt from "jsonwebtoken";
 import { Post, User, Category, Topic, Comment, Like } from "../models/index.js";
 import { spawn } from "child_process";
-import { Op } from "sequelize";
 
 class PostController {
   async getAllPosts(req, res) {

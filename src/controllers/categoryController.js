@@ -1,5 +1,4 @@
 import { Category, Post, User } from "../models/index.js";
-import { URL } from "url";
 
 const categoryController = {
   // Tüm kategorileri getir

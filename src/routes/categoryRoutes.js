@@ -1,7 +1,5 @@
 import categoryController from "../controllers/categoryController.js";
 import { Category, Post, User } from "../models/index.js";
-import path from "path";
-import { promises as fs } from "fs";
 
 // Kategorileri önbellekten veya veritabanından getir
 async function getCategoriesWithCache(redisClient) {

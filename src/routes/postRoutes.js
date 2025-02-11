@@ -1,6 +1,5 @@
 import postController from "../controllers/postController.js";
 import { Post, User, Category, Topic } from "../models/index.js";
-import jwt from "jsonwebtoken";
 import { spawn } from "child_process";
 
 async function analyzeContent(content) {

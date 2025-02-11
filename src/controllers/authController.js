@@ -2,24 +2,20 @@ import jwt from "jsonwebtoken";
 import bcrypt from "bcrypt";
 import db from "../models/index.js";
 import { Op } from "sequelize";
-
+import { z } from "zod";
 const { User } = db;
 
 class AuthController {
   async register(req, res) {
-    try {
-      const { username, email, password } = req.body;
+    const schema = z.object({
+      username: z.string().min(3, "Kullanıcı adı en az 3 karakter olmalıdır."),
+      email: z.string().email("Geçerli bir e-posta adresi girin."),
+      password: z.string().min(6, "Şifre en az 6 karakter olmalıdır."),
+    });
 
-      // Validasyon
-      if (!username || !password || !email) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            message: "Kullanıcı adı, email ve şifre zorunludur",
-          })
-        );
-        return;
-      }
+    try {
+      schema.parse(req.body);
+      const { username, email, password } = req.body;
 
       // Kullanıcı kontrolü
       const existingUser = await User.findOne({
@@ -65,18 +61,30 @@ class AuthController {
       );
     } catch (error) {
       console.error("Kayıt hatası:", error);
+      if (error instanceof z.ZodError) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: error.errors[0].message }));
+        return;
+      }
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ message: "Kayıt işlemi başarısız" }));
     }
   }
 
   async login(req, res) {
+    const schema = z.object({
+      username: z.string().nonempty("Kullanıcı adı zorunludur."),
+      password: z.string().nonempty("Şifre zorunludur."),
+    });
+
     try {
       // CORS başlıkları ekle
       res.setHeader("Access-Control-Allow-Origin", "*");
       res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
       res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
+      // Validasyon
+      schema.parse(req.body);
       const { username, password } = req.body;
 
       // Kullanıcıyı bul
@@ -110,6 +118,11 @@ class AuthController {
       );
     } catch (error) {
       console.error("Giriş hatası:", error);
+      if (error instanceof z.ZodError) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ message: error.errors[0].message }));
+        return;
+      }
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ message: "Giriş işlemi başarısız" }));
     }
