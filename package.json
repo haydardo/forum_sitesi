@@ -6,6 +6,8 @@
   "main": "src/main.js",
   "type": "module",
   "scripts": {
+    "test": "jest",
+    "presets": "@babel/preset-env",
     "start": "node src/main.js",
     "dev": "nodemon --watch src --ext js,json src/main.js",
     "migrate": "sequelize-cli db:migrate",
@@ -29,7 +31,9 @@
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.26.8",
     "@types/faker": "^6.6.11",
+    "jest": "^29.7.0",
     "nodemon": "^3.1.0",
     "sequelize-cli": "^6.6.2"
   }

@@ -4,11 +4,12 @@ import { fileURLToPath } from "url";
 import path from "path";
 import fs from "fs";
 import url from "url";
-import { initDb, seedDb } from "./utilities/db.js";
+import { sequelize } from "./utilities/db.js";
 import { authRoutes } from "./routes/authRoutes.js";
 import { postRoutes } from "./routes/postRoutes.js";
 import { categoryRoutes } from "./routes/categoryRoutes.js";
-
+import { getDB } from "./models/index.js";
+import seedCategories from "./seeders/20240320-categories.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -77,115 +78,130 @@ const serveStaticFile = async (req, res) => {
 };
 
 // Veritabanını başlat
-const initializeDatabase = async () => {
+async function initializeDatabase() {
   try {
-    await initDb();
-    await seedDb();
+    await sequelize.authenticate();
+    await sequelize.sync({ force: false }); // Mevcut verileri koruyoruz
+
+    // Sadece kategorileri seed et
+    await seedCategories();
+
     console.log("Veritabanı başarıyla başlatıldı");
   } catch (error) {
-    console.error("Veritabanı başlatma hatası:", error);
-    process.exit(1);
+    console.error("Veritabanı başlatılırken hata:", error);
   }
-};
+}
 
 // Uygulamayı başlat
-const startApp = async () => {
+async function startApp() {
   try {
     await initializeDatabase();
-
+    const db = await getDB();
+    const { User, Category, Post, Topic, Comment, Like } = db;
     // HTTP sunucusunu oluştur
     const server = http.createServer(async (req, res) => {
-      setIpMiddleware(req, res, async () => {
-        try {
-          // CORS headers
-          res.setHeader("Access-Control-Allow-Origin", "*");
-          res.setHeader(
-            "Access-Control-Allow-Methods",
-            "GET, POST, PUT, DELETE, OPTIONS"
-          );
-          res.setHeader(
-            "Access-Control-Allow-Headers",
-            "Content-Type, Authorization"
-          );
+      try {
+        const clientIp =
+          req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+        req.clientIp = clientIp;
 
-          // OPTIONS isteklerini yanıtla
-          if (req.method === "OPTIONS") {
-            res.writeHead(200);
-            res.end();
-            return;
-          }
+        // CORS headers
+        res.setHeader("Access-Control-Allow-Origin", "*");
+        res.setHeader(
+          "Access-Control-Allow-Methods",
+          "GET, POST, PUT, DELETE, OPTIONS"
+        );
+        res.setHeader(
+          "Access-Control-Allow-Headers",
+          "Content-Type, Authorization"
+        );
 
-          // POST istekleri için body parsing
-          if (req.method === "POST") {
-            let body = "";
-            req.on("data", (chunk) => {
-              body += chunk.toString();
-            });
-
-            await new Promise((resolve, reject) => {
-              req.on("end", () => {
-                try {
-                  if (body) {
-                    req.body = JSON.parse(body);
-                    console.log("Gelen veri:", req.body); // Debug için
-                  }
-                  resolve();
-                } catch (error) {
-                  console.error("Body parsing hatası:", error); // Debug için
-                  reject(error);
-                }
-              });
-              req.on("error", reject);
-            });
-          }
-
-          // Statik dosya kontrolü
-          const isStaticFile = await serveStaticFile(req, res);
-          if (isStaticFile) return;
-
-          const parsedUrl = url.parse(req.url, true);
-          console.log("Gelen istek:", parsedUrl.pathname);
-
-          // API routes
-          if (parsedUrl.pathname.startsWith("/api/auth/")) {
-            await authRoutes(req, res);
-            return;
-          }
-
-          if (parsedUrl.pathname.startsWith("/api/posts")) {
-            await postRoutes(req, res);
-            return;
-          }
-
-          if (parsedUrl.pathname.startsWith("/api/categories")) {
-            await categoryRoutes(req, res, redisClient);
-            return;
-          }
-
-          // API endpoint'i bulunamadı
-          if (parsedUrl.pathname.startsWith("/api/")) {
-            res.writeHead(404, { "Content-Type": "application/json" });
-            res.end(JSON.stringify({ error: "API endpoint'i bulunamadi" }));
-            return;
-          }
-        } catch (error) {
-          console.error("Sunucu hatasi:", error);
-          res.writeHead(500, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "Sunucu hatasi" }));
+        // OPTIONS isteklerini yanıtla
+        if (req.method === "OPTIONS") {
+          res.writeHead(200);
+          res.end();
+          return;
         }
-      });
+
+        // POST istekleri için body parsing
+        if (req.method === "POST") {
+          let body = "";
+          req.on("data", (chunk) => {
+            body += chunk.toString();
+          });
+
+          await new Promise((resolve, reject) => {
+            req.on("end", () => {
+              try {
+                if (body) {
+                  req.body = JSON.parse(body);
+                  console.log("Gelen veri:", req.body); // Debug için
+                }
+                resolve();
+              } catch (error) {
+                console.error("Body parsing hatası:", error); // Debug için
+                reject(error);
+              }
+            });
+            req.on("error", reject);
+          });
+        }
+
+        // Statik dosya kontrolü
+        const isStaticFile = await serveStaticFile(req, res);
+        if (isStaticFile) return;
+
+        const parsedUrl = url.parse(req.url, true);
+        console.log("Gelen istek:", parsedUrl.pathname);
+
+        // API routes
+        if (parsedUrl.pathname.startsWith("/api/auth/")) {
+          await authRoutes(req, res);
+          return;
+        }
+
+        if (parsedUrl.pathname.startsWith("/api/posts")) {
+          await postRoutes(req, res);
+          return;
+        }
+
+        if (parsedUrl.pathname.startsWith("/api/categories")) {
+          await categoryRoutes(req, res, redisClient);
+          return;
+        }
+
+        // API endpoint'i bulunamadı
+        if (parsedUrl.pathname.startsWith("/api/")) {
+          res.writeHead(404, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "API endpoint'i bulunamadi" }));
+          return;
+        }
+      } catch (error) {
+        console.error("Sunucu hatasi:", error);
+        res.writeHead(500, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Sunucu hatasi" }));
+      }
     });
 
-    // Sunucuyu dinle
-    const PORT = process.env.PORT || 3001;
-    server.listen(PORT, () => {
-      console.log(`Sunucu ${PORT} portunda çalışıyor`);
-    });
+    // Veritabanı senkronizasyonu
+    sequelize
+      .sync({ alter: true }) // Geliştirme ortamında alter: true kullanabilirsiniz
+      .then(() => {
+        console.log("Veritabanı senkronize edildi");
+        // Sunucuyu başlat
+        const PORT = process.env.PORT || 3001;
+        server.listen(PORT, () => {
+          console.log(`Sunucu ${PORT} portunda çalışıyor`);
+        });
+      })
+      .catch((error) => {
+        console.error("Veritabanı senkronizasyon hatası:", error);
+      });
   } catch (error) {
     console.error("Uygulama başlatma hatası:", error);
     process.exit(1);
   }
-};
+}
 
 // Uygulamayı başlat
 startApp();

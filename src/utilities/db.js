@@ -27,10 +27,6 @@ const sequelize = new Sequelize(
   }
 );
 
-// Models'ı doğrudan import et
-import models from "../models/index.js";
-const db = models;
-
 export const initDb = async () => {
   try {
     await sequelize.authenticate();
@@ -41,41 +37,46 @@ export const initDb = async () => {
     throw error;
   }
 };
-export { sequelize };
+
 export const seedDb = async () => {
   try {
-    //const { User } = require("./index");
-    //const bcrypt = require("bcrypt");
+    // Önce kategori var mı kontrol et
+    const checkSql = `
+      SELECT * FROM categories 
+      WHERE slug IN ('genel-konular', 'programlama', 'web-gelistirme')
+    `;
 
-    // Category'yi db'den alıyoruz
-    const Category = db.Category;
+    const [existingCategories] = await sequelize.query(checkSql);
 
-    // Ana kategorileri ekle
-    const [generalCategory] = await Category.findOrCreate({
-      where: { slug: "genel-konular" },
-      defaults: {
-        name: "Genel Konular",
-        description: "Genel tartışma konuları",
-      },
-    });
+    if (existingCategories.length === 0) {
+      // Kategoriler yoksa ekle
+      const insertSql = `
+        INSERT INTO categories (name, slug, description, parent_id)
+        VALUES 
+          ('Genel Konular', 'genel-konular', 'Genel tartışma konuları', NULL),
+          ('Programlama', 'programlama', 'Programlama ile ilgili konular', NULL)
+      `;
 
-    const [programmingCategory] = await Category.findOrCreate({
-      where: { slug: "programlama" },
-      defaults: {
-        name: "Programlama",
-        description: "Programlama ile ilgili konular",
-      },
-    });
+      await sequelize.query(insertSql);
 
-    // Alt kategorileri ekle
-    await Category.findOrCreate({
-      where: { slug: "web-gelistirme" },
-      defaults: {
-        name: "Web Geliştirme",
-        description: "Web geliştirme konuları",
-        parent_id: programmingCategory.id,
-      },
-    });
+      // Programlama kategorisinin ID'sini al
+      const [programmingCategory] = await sequelize.query(`
+        SELECT id FROM categories WHERE slug = 'programlama'
+      `);
+
+      // Alt kategoriyi ekle
+      if (programmingCategory.length > 0) {
+        await sequelize.query(
+          `
+          INSERT INTO categories (name, slug, description, parent_id)
+          VALUES ('Web Geliştirme', 'web-gelistirme', 'Web geliştirme konuları', :parentId)
+        `,
+          {
+            replacements: { parentId: programmingCategory[0].id },
+          }
+        );
+      }
+    }
     console.log("Örnek kategoriler başarıyla eklendi");
   } catch (error) {
     console.error("Test verisi ekleme hatası:", error);
@@ -83,4 +84,4 @@ export const seedDb = async () => {
   }
 };
 
-export default sequelize;
+export { sequelize };
