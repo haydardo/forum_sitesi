@@ -92,116 +92,105 @@ async function initializeDatabase() {
   }
 }
 
-// Uygulamayı başlat
-async function startApp() {
-  try {
-    await initializeDatabase();
-    const db = await getDB();
-    const { User, Category, Post, Topic, Comment, Like } = db;
-    // HTTP sunucusunu oluştur
-    const server = http.createServer(async (req, res) => {
-      try {
-        const clientIp =
-          req.headers["x-forwarded-for"] || req.socket.remoteAddress;
-        req.clientIp = clientIp;
+// Server oluşturma fonksiyonu
+export function createServer() {
+  const server = http.createServer(async (req, res) => {
+    try {
+      const clientIp =
+        req.headers["x-forwarded-for"] || req.socket.remoteAddress;
+      req.clientIp = clientIp;
 
-        // CORS headers
-        res.setHeader("Access-Control-Allow-Origin", "*");
-        res.setHeader(
-          "Access-Control-Allow-Methods",
-          "GET, POST, PUT, DELETE, OPTIONS"
-        );
-        res.setHeader(
-          "Access-Control-Allow-Headers",
-          "Content-Type, Authorization"
-        );
+      // CORS headers
+      res.setHeader("Access-Control-Allow-Origin", "*");
+      res.setHeader(
+        "Access-Control-Allow-Methods",
+        "GET, POST, PUT, DELETE, OPTIONS"
+      );
+      res.setHeader(
+        "Access-Control-Allow-Headers",
+        "Content-Type, Authorization"
+      );
 
-        // OPTIONS isteklerini yanıtla
-        if (req.method === "OPTIONS") {
-          res.writeHead(200);
-          res.end();
-          return;
-        }
-
-        // POST istekleri için body parsing
-        if (req.method === "POST") {
-          let body = "";
-          req.on("data", (chunk) => {
-            body += chunk.toString();
-          });
-
-          await new Promise((resolve, reject) => {
-            req.on("end", () => {
-              try {
-                if (body) {
-                  req.body = JSON.parse(body);
-                  console.log("Gelen veri:", req.body); // Debug için
-                }
-                resolve();
-              } catch (error) {
-                console.error("Body parsing hatası:", error); // Debug için
-                reject(error);
-              }
-            });
-            req.on("error", reject);
-          });
-        }
-
-        // Statik dosya kontrolü
-        const isStaticFile = await serveStaticFile(req, res);
-        if (isStaticFile) return;
-
-        const parsedUrl = url.parse(req.url, true);
-        console.log("Gelen istek:", parsedUrl.pathname);
-
-        // API routes
-        if (parsedUrl.pathname.startsWith("/api/auth/")) {
-          await authRoutes(req, res);
-          return;
-        }
-
-        if (parsedUrl.pathname.startsWith("/api/posts")) {
-          await postRoutes(req, res);
-          return;
-        }
-
-        if (parsedUrl.pathname.startsWith("/api/categories")) {
-          await categoryRoutes(req, res, redisClient);
-          return;
-        }
-
-        // API endpoint'i bulunamadı
-        if (parsedUrl.pathname.startsWith("/api/")) {
-          res.writeHead(404, { "Content-Type": "application/json" });
-          res.end(JSON.stringify({ error: "API endpoint'i bulunamadi" }));
-          return;
-        }
-      } catch (error) {
-        console.error("Sunucu hatasi:", error);
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ error: "Sunucu hatasi" }));
+      // OPTIONS isteklerini yanıtla
+      if (req.method === "OPTIONS") {
+        res.writeHead(200);
+        res.end();
+        return;
       }
-    });
 
-    // Veritabanı senkronizasyonu
-    sequelize
-      .sync({ alter: true }) // Geliştirme ortamında alter: true kullanabilirsiniz
-      .then(() => {
-        console.log("Veritabanı senkronize edildi");
-        // Sunucuyu başlat
-        const PORT = process.env.PORT || 3001;
-        server.listen(PORT, () => {
-          console.log(`Sunucu ${PORT} portunda çalışıyor`);
+      // POST istekleri için body parsing
+      if (req.method === "POST") {
+        let body = "";
+        req.on("data", (chunk) => {
+          body += chunk.toString();
         });
-      })
-      .catch((error) => {
-        console.error("Veritabanı senkronizasyon hatası:", error);
-      });
-  } catch (error) {
-    console.error("Uygulama başlatma hatası:", error);
-    process.exit(1);
-  }
+
+        await new Promise((resolve, reject) => {
+          req.on("end", () => {
+            try {
+              if (body) {
+                req.body = JSON.parse(body);
+                console.log("Gelen veri:", req.body); // Debug için
+              }
+              resolve();
+            } catch (error) {
+              console.error("Body parsing hatası:", error); // Debug için
+              reject(error);
+            }
+          });
+          req.on("error", reject);
+        });
+      }
+
+      // Statik dosya kontrolü
+      const isStaticFile = await serveStaticFile(req, res);
+      if (isStaticFile) return;
+
+      const parsedUrl = url.parse(req.url, true);
+      console.log("Gelen istek:", parsedUrl.pathname);
+
+      // API routes
+      if (parsedUrl.pathname.startsWith("/api/auth/")) {
+        await authRoutes(req, res);
+        return;
+      }
+
+      if (parsedUrl.pathname.startsWith("/api/posts")) {
+        await postRoutes(req, res);
+        return;
+      }
+
+      if (parsedUrl.pathname.startsWith("/api/categories")) {
+        await categoryRoutes(req, res, redisClient);
+        return;
+      }
+
+      // API endpoint'i bulunamadı
+      if (parsedUrl.pathname.startsWith("/api/")) {
+        res.writeHead(404, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "API endpoint'i bulunamadi" }));
+        return;
+      }
+    } catch (error) {
+      console.error("Sunucu hatasi:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Sunucu hatasi" }));
+    }
+  });
+  return server;
 }
 
-// Uygulamayı başlat
-startApp();
+// Server başlatma fonksiyonu
+export async function startServer(port = process.env.PORT || 3001) {
+  const server = createServer();
+  await sequelize.sync({ alter: true });
+  server.listen(port, () => {
+    console.log(`Sunucu ${port} portunda çalışıyor`);
+  });
+  return server;
+}
+
+// Ana uygulama sadece direkt çalıştırıldığında başlasın
+if (process.argv[1] === fileURLToPath(import.meta.url)) {
+  startApp();
+}
