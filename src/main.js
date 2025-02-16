@@ -190,6 +190,16 @@ export async function startServer(port = process.env.PORT || 3001) {
   return server;
 }
 
+// Ana uygulama başlatma fonksiyonu
+async function startApp() {
+  try {
+    await initializeDatabase();
+    await startServer();
+  } catch (error) {
+    console.error("Uygulama başlatılırken hata:", error);
+    process.exit(1);
+  }
+}
 // Ana uygulama sadece direkt çalıştırıldığında başlasın
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   startApp();
