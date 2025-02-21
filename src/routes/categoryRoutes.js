@@ -47,7 +47,6 @@ export async function getCategoriesWithCache(redisClient) {
     // Önbellekten veri okuma denemesi
     try {
       const cachedData = await redisClient.get("categories");
-      console.log("Önbellekten alınan veri:", cachedData);
 
       if (cachedData) {
         console.log("Kategoriler önbellekten alındı");
@@ -69,8 +68,6 @@ export async function getCategoriesWithCache(redisClient) {
         ? JSON.parse(category.recent_posts)
         : [],
     }));
-
-    // Redis'e kaydetme denemesi
     // Redis'e kaydetme denemesi
     try {
       if (redisClient.status === "ready") {

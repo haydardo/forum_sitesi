@@ -34,7 +34,8 @@ const formatDate = (dateString) => {
 // Kategorileri yükle ve select'e ekle
 async function loadCategories() {
   try {
-    const categories = await API.getCategories();
+    const categories = await API.getCategories(); // API'den kategorileri al
+    console.log("Yüklenen kategoriler:", categories);
     const categorySelect = document.getElementById("post-category");
 
     if (!categorySelect) {
@@ -47,12 +48,12 @@ async function loadCategories() {
       return;
     }
 
-    categorySelect.innerHTML = '<option value="">Kategori Seçin</option>';
+    categorySelect.innerHTML = '<option value="">Kategori Seçin</option>'; // İlk seçenek
     categories.forEach((category) => {
       const option = document.createElement("option");
-      option.value = category.id;
-      option.textContent = category.name;
-      categorySelect.appendChild(option);
+      option.value = category.id; // Kategori ID'si
+      option.textContent = category.name; // Kategori adı
+      categorySelect.appendChild(option); // Seçenekleri ekle
     });
   } catch (error) {
     console.error("Kategoriler yüklenirken hata:", error);
@@ -164,7 +165,7 @@ const createPost = async (event) => {
   const title = document.getElementById("post-title").value.trim();
   const content = document.getElementById("post-content").value.trim();
   const categoryId = document.getElementById("post-category").value;
-
+  console.log("seçilen kategori id:", categoryId);
   if (!title || !content || !categoryId) {
     alert("Lütfen tüm alanları doldurun.");
     return;

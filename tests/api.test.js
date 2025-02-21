@@ -57,7 +57,6 @@ describe("API Tests", () => {
   });
 
   after(async () => {
-    // Test sonrası temizlik
     if (server && server.close) {
       await new Promise((resolve) => server.close(resolve));
     }

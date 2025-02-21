@@ -9,38 +9,10 @@ import { authRoutes } from "./routes/authRoutes.js";
 import { postRoutes } from "./routes/postRoutes.js";
 import { categoryRoutes } from "./routes/categoryRoutes.js";
 import seedCategories from "./seeders/20240320-categories.js";
+import redisClient from "./config/redis.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Redis bağlantısı
-const redisClient = new Redis({
-  host: "localhost",
-  port: 6379,
-  enableOfflineQueue: false,
-  retryStrategy: (times) => {
-    const delay = Math.min(times * 50, 2000);
-    return delay;
-  },
-  maxRetriesPerRequest: 3,
-});
-
-redisClient.on("connect", () => {
-  console.log("Redis bağlantısı başarılı");
-});
-
-redisClient.on("error", (err) => {
-  console.log("Redis bağlantı hatası:", err);
-});
-//Redis bağlantısını bekle
-await redisClient.connect().catch((error) => {
-  console.error("Bağlantı hatası", error);
-});
-try {
-  await redisClient.ping();
-  console.log("Redis ping başarılı");
-} catch (error) {
-  console.error("Redis ping hatası", error);
-}
 // Statik dosya sunucusu
 const serveStaticFile = async (req, res) => {
   console.log("İstenen URL:", req.url);
@@ -181,8 +153,19 @@ export function createServer() {
       }
 
       if (parsedUrl.pathname.startsWith("/api/posts")) {
-        await postRoutes(req, res);
-        return;
+        try {
+          await postRoutes(req, res);
+          return;
+        } catch (error) {
+          console.error("Post route hatası:", error);
+          if (!res.headersSent) {
+            res.writeHead(500, { "Content-Type": "application/json" });
+            res.end(
+              JSON.stringify({ error: "Post işlemi sırasında hata oluştu" })
+            );
+          }
+          return;
+        }
       }
 
       if (parsedUrl.pathname.startsWith("/api/categories")) {

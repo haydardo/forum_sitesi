@@ -35,14 +35,14 @@ class CategoryController {
         }
       }
 
-      // Web Programlama kategorisini ekle
-      const webProgramming = {
-        name: "Web Programlama",
+      // Web Geliştirme kategorisini ekle
+      const webDevelopment = {
+        name: "Web Geliştirme",
         description: "Web programlama ile ilgili konular ve tartışmalar",
         recent_posts: [],
         post_count: 0,
       };
-      categories.push(webProgramming);
+      categories.push(webDevelopment);
 
       // İstemci HTML istiyorsa HTML formatında yanıt ver
       if (req.headers.accept?.includes("text/html")) {
@@ -257,7 +257,17 @@ class CategoryController {
         replacements: { name, slug, description, parent_id },
         type: sequelize.QueryTypes.INSERT,
       });
+      // Yeni kategori eklendikten sonra Redis'i güncelle
+      const categories = await getCategoriesWithCache(redisClient);
 
+      // Redis'e kaydetme
+      await redisClient.set(
+        "categories",
+        JSON.stringify(categories),
+        "EX",
+        3600
+      );
+      console.log("Kategoriler Redist'e güncellendi");
       const [newCategory] = await sequelize.query(
         "SELECT * FROM categories WHERE id = :id",
         {

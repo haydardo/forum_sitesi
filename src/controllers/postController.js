@@ -2,10 +2,19 @@ import jwt from "jsonwebtoken";
 import { sequelize } from "../utilities/db.js";
 import { spawn } from "child_process";
 import { Post } from "../models/Post.js";
+import redisClient from "../config/redis.js";
+import { validatePost } from "../validators/postValidator.js";
+import { getCategoriesWithCache } from "../routes/categoryRoutes.js";
 
 class PostController {
   async getAllPosts(req, res) {
     try {
+      const cachedPosts = await redisClient.get("all_posts");
+
+      if (cachedPosts) {
+        return res.json(JSON.parse(cachedPosts));
+      }
+
       const sql = `
         SELECT p.*, 
                u.username as author_username,
@@ -33,6 +42,8 @@ class PostController {
           : null,
       }));
 
+      await redisClient.setEx("all_posts", 300, JSON.stringify(formattedPosts));
+
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(formattedPosts));
     } catch (error) {
@@ -44,6 +55,11 @@ class PostController {
 
   async createPost(req, res) {
     try {
+      const { error } = validatePost(req.body);
+      if (error) {
+        return res.status(400).json({ error: error.details[0].message });
+      }
+
       const { title, content, categoryId } = req.body;
 
       // Authorization header'ı kontrol et
@@ -74,34 +90,72 @@ class PostController {
         title,
         content,
         categoryId,
-        userId: userId, // req.user.id yerine decoded token'dan alınan userId kullanılıyor
+        userId: userId,
       });
 
-      res.status(201).json({
-        success: true,
-        data: post,
-      });
-    } catch (error) {
-      console.error("Post oluşturma hatası:", error);
+      // Redis önbelleğini güncelle
+      await redisClient.del("all_posts");
+      await redisClient.del("categories");
 
-      // JWT doğrulama hatası kontrolü
-      if (error.name === "JsonWebTokenError") {
-        return res.status(401).json({
-          success: false,
-          message: "Geçersiz token",
-        });
+      // Kategorileri veritabanından al ve Redis'e kaydet
+      const sqlQuery = `
+        SELECT 
+          c.*,
+          (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+          COALESCE(
+            (
+              SELECT CONCAT('[', 
+                GROUP_CONCAT(
+                  JSON_OBJECT(
+                    'id', p.id,
+                    'title', p.title,
+                    'content', SUBSTRING(p.content, 1, 100),
+                    'created_at', p.created_at,
+                    'author_username', COALESCE(u.username, 'Anonim')
+                  )
+                ),
+              ']')
+              FROM posts p
+              LEFT JOIN users u ON p.user_id = u.id
+              WHERE p.category_id = c.id
+              GROUP BY p.category_id
+              ORDER BY p.created_at DESC
+              LIMIT 5
+            ),
+            '[]'
+          ) as recent_posts
+        FROM categories c
+        WHERE c.parent_id IS NULL
+        ORDER BY c.created_at DESC
+      `;
+
+      const categories = await sequelize.query(sqlQuery, {
+        type: sequelize.QueryTypes.SELECT,
+      });
+
+      if (categories) {
+        await redisClient.setEx("categories", 3600, JSON.stringify(categories));
+        console.log("Kategoriler Redis'te güncellendi");
       }
 
-      res.status(400).json({
-        success: false,
-        message: error.message || "İçerik oluşturulurken bir hata oluştu",
+      res.status(201).json(post);
+    } catch (error) {
+      console.error("Gönderi oluşturulurken hata:", error);
+      res.status(500).json({
+        error: "Gönderi oluşturulurken bir hata oluştu",
+        details: error.message,
       });
     }
   }
-
   async getPostById(req, res) {
     try {
       const postId = req.params.id;
+
+      const cachedPost = await redisClient.get(`post:${postId}`);
+
+      if (cachedPost) {
+        return res.json(JSON.parse(cachedPost));
+      }
 
       const sql = `
         SELECT p.*, 
@@ -135,12 +189,11 @@ class PostController {
       });
 
       if (!post) {
-        res.writeHead(404, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Gönderi bulunamadı" }));
-        return;
+        return res.status(404).json({ error: "Gönderi bulunamadı" });
       }
 
-      // comments alanını parse et
+      await redisClient.setEx(`post:${postId}`, 300, JSON.stringify(post));
+
       post.comments = post.comments
         ? post.comments.split(",").map((comment) => JSON.parse(comment))
         : [];

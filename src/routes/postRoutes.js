@@ -2,7 +2,7 @@ import jwt from "jsonwebtoken";
 import { sequelize } from "../utilities/db.js";
 import { spawn } from "child_process";
 import Post from "../models/Post.js";
-
+import redisClient from "../config/redis.js";
 async function analyzeContent(content) {
   return new Promise((resolve, reject) => {
     const python = spawn("python", ["python_scripts/content_analyzer.py"]);
@@ -32,6 +32,122 @@ async function analyzeContent(content) {
     python.stdin.write(JSON.stringify({ content }));
     python.stdin.end();
   });
+}
+
+async function handlePostRequest(req, res) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Yetkilendirme gerekli" }));
+      return;
+    }
+
+    const token = authHeader.split(" ")[1];
+    let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET || "gizli_anahtar");
+    } catch (error) {
+      res.writeHead(401, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ message: "Geçersiz token" }));
+      return;
+    }
+
+    const { title, content, categoryId } = req.body;
+    const contentAnalysis = await analyzeContent(content);
+    console.log("İçerik analizi sonucu:", contentAnalysis);
+    if (!title || !content || !categoryId) {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          message: "Başlık, içerik ve kategori alanları zorunludur",
+        })
+      );
+      return;
+    }
+
+    const post = await Post.create({
+      title,
+      content,
+      categoryId,
+      userId: decoded.id,
+      topicId: null,
+    });
+
+    if (redisClient.isReady) {
+      await redisClient.del("all_posts");
+      await redisClient.del("categories");
+    }
+
+    if (!res.headersSent) {
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          data: post,
+        })
+      );
+    }
+
+    // Yeni kategori verilerini al ve Redis'e kaydet
+    const sqlQuery = `
+    SELECT 
+      c.*,
+      (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+      COALESCE(
+        (
+          SELECT CONCAT('[', 
+            GROUP_CONCAT(
+              JSON_OBJECT(
+                'id', p.id,
+                'title', p.title,
+                'content', SUBSTRING(p.content, 1, 100),
+                'created_at', p.created_at,
+                'author_username', COALESCE(u.username, 'Anonim')
+              )
+            ),
+          ']')
+          FROM posts p
+          LEFT JOIN users u ON p.user_id = u.id
+          WHERE p.category_id = c.id
+          GROUP BY p.category_id
+          ORDER BY p.created_at DESC
+          LIMIT 5
+        ),
+        '[]'
+      ) as recent_posts
+    FROM categories c
+    WHERE c.parent_id IS NULL
+    ORDER BY c.created_at DESC
+  `;
+    const categories = await sequelize.query(sqlQuery, {
+      type: sequelize.QueryTypes.SELECT,
+    });
+
+    if (categories) {
+      await redisClient.setEx("categories", 3600, JSON.stringify(categories));
+    }
+
+    if (!res.headersSent) {
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          success: true,
+          data: post,
+        })
+      );
+    }
+  } catch (error) {
+    if (!res.headersSent) {
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({
+          message: "Post oluşturulurken bir hata oluştu",
+          error: error.message,
+        })
+      );
+    }
+  }
 }
 
 async function handleGetRequest(req, res) {
@@ -105,86 +221,23 @@ async function handleGetRequest(req, res) {
       }
     });
 
-    res.writeHead(200, {
-      "Content-Type": "application/json",
-      "Access-Control-Allow-Origin": "*",
-    });
-    res.end(JSON.stringify(formattedPosts));
-  } catch (error) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        message: "Gönderiler listelenirken bir hata oluştu",
-        error: error.message,
-      })
-    );
-  }
-}
-
-async function handlePostRequest(req, res) {
-  try {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ message: "Yetkilendirme gerekli" }));
-      return;
-    }
-
-    const token = authHeader.split(" ")[1];
-    let decoded;
-    try {
-      decoded = jwt.verify(token, process.env.JWT_SECRET || "gizli_anahtar");
-    } catch (error) {
-      res.writeHead(401, { "Content-Type": "application/json" });
-      res.end(JSON.stringify({ message: "Geçersiz token" }));
-      return;
-    }
-
-    const { title, content, categoryId } = req.body;
-
-    if (!title || !content || !categoryId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          message: "Başlık, içerik ve kategori alanları zorunludur",
-        })
-      );
-      return;
-    }
-
-    try {
-      const post = await Post.create({
-        title,
-        content,
-        categoryId,
-        userId: decoded.id,
-        topicId: null,
+    if (!res.headersSent) {
+      res.writeHead(200, {
+        "Content-Type": "application/json",
+        "Access-Control-Allow-Origin": "*",
       });
-
-      res.writeHead(201, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          success: true,
-          data: post,
-        })
-      );
-    } catch (error) {
+      res.end(JSON.stringify(formattedPosts));
+    }
+  } catch (error) {
+    if (!res.headersSent) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(
         JSON.stringify({
-          message: "Post oluşturulurken bir hata oluştu",
+          message: "Gönderiler listelenirken bir hata oluştu",
           error: error.message,
         })
       );
     }
-  } catch (error) {
-    res.writeHead(500, { "Content-Type": "application/json" });
-    res.end(
-      JSON.stringify({
-        message: "İstek işlenirken hata oluştu",
-        error: error.message,
-      })
-    );
   }
 }
 
@@ -305,60 +358,7 @@ async function HandleCommentRequest(req, res) {
 export const postRoutes = async (req, res) => {
   try {
     if (req.method === "POST" && req.url === "/api/posts") {
-      const authHeader = req.headers.authorization;
-      if (!authHeader) {
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Yetkilendirme gerekli" }));
-        return;
-      }
-
-      const token = authHeader.split(" ")[1];
-      let decoded;
-      try {
-        decoded = jwt.verify(token, process.env.JWT_SECRET || "gizli_anahtar");
-      } catch (error) {
-        res.writeHead(401, { "Content-Type": "application/json" });
-        res.end(JSON.stringify({ message: "Geçersiz token" }));
-        return;
-      }
-
-      const { title, content, categoryId } = req.body;
-
-      if (!title || !content || !categoryId) {
-        res.writeHead(400, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            message: "Başlık, içerik ve kategori alanları zorunludur",
-          })
-        );
-        return;
-      }
-
-      try {
-        const post = await Post.create({
-          title,
-          content,
-          categoryId,
-          userId: decoded.id,
-          topicId: null,
-        });
-
-        res.writeHead(201, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            success: true,
-            data: post,
-          })
-        );
-      } catch (error) {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            message: "Post oluşturulurken bir hata oluştu",
-            error: error.message,
-          })
-        );
-      }
+      await handlePostRequest(req, res);
     } else if (req.method === "GET" && req.url === "/api/posts") {
       await handleGetRequest(req, res);
     } else if (req.method === "GET" && req.url.match(/^\/api\/posts\/\d+$/)) {
