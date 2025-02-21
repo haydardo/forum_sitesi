@@ -1,86 +1,48 @@
 import { sequelize } from "../utilities/db.js";
+import { getCategoriesWithCache } from "../routes/categoryRoutes.js";
 
 class CategoryController {
   // Kategorileri ve son gönderileri al
-  async getAllCategories(req, res) {
+  async getAllCategories(req, res, redisClient) {
     try {
-      console.log("getAllCategories başladı");
-      const url = new URL(req.url, `http://${req.headers.host}`);
-      let searchQuery = url.searchParams.get("q") || "";
-      // XSS koruması için arama sorgusunu temizle
-      searchQuery = searchQuery
-        .replace(/[<>]/g, "")
-        .replace(/['"]/g, "")
-        .replace(/;/g, "")
-        .replace(/script/gi, "");
-
-      let sql = `
-        SELECT 
-          c.id,
-          c.name,
-          c.description,
-          c.slug,
-          c.parent_id,
-          c.created_at,
-          c.updated_at,
-          p.name as parent_name,
-          COALESCE(
-            (
-              SELECT CONCAT('[', 
-                GROUP_CONCAT(
-                  JSON_OBJECT(
-                    'id', posts.id,
-                    'title', posts.title,
-                    'content', posts.content,
-                    'created_at', posts.created_at,
-                    'author_username', COALESCE(u.username, 'Anonim')
-                  )
-                ),
-              ']')
-              FROM posts 
-              LEFT JOIN users u ON posts.user_id = u.id
-              WHERE posts.category_id = c.id
-              GROUP BY posts.category_id
-              ORDER BY posts.created_at DESC
-            ),
-            '[]'
-          ) as posts
-        FROM categories c
-        LEFT JOIN categories p ON c.parent_id = p.id
-        WHERE 1=1
-        ${
-          searchQuery
-            ? `AND (
-                MATCH(c.name, c.description) AGAINST(:search IN BOOLEAN MODE) OR
-                c.name LIKE :searchLike OR 
-                c.description LIKE :searchLike
-              )`
-            : ""
+      // Redis bağlantısını test et
+      if (redisClient?.isOpen) {
+        try {
+          await redisClient.ping();
+          console.log("Redis bağlantısı aktif");
+          await redisClient.del("categories");
+          console.log("Redis önbelleği temizlendi");
+        } catch (error) {
+          console.error("Redis bağlantı hatası:", error);
         }
-        ORDER BY c.created_at DESC
-      `;
+      }
 
-      console.log("SQL sorgusu:", sql);
+      const categories = await getCategoriesWithCache(redisClient);
 
-      const categories = await sequelize.query(sql, {
-        replacements: searchQuery
-          ? {
-              search: `${searchQuery}*`,
-              searchLike: `%${searchQuery}%`,
-            }
-          : {},
-        type: sequelize.QueryTypes.SELECT,
-      });
+      // Redis'e veri kaydetme ve kontrol
+      if (redisClient?.isOpen) {
+        const categoriesString = JSON.stringify(categories);
+        console.log("Redis'e kaydedilecek veri:", categoriesString);
 
-      console.log("Veritabanından gelen kategoriler:", categories);
+        try {
+          await redisClient.setEx("categories", 3600, categoriesString);
 
-      // Kategorileri işle
-      const processedCategories = categories.map((category) => ({
-        ...category,
-        posts: category.posts ? JSON.parse(category.posts) : [],
-      }));
+          // Kaydedilen veriyi kontrol et
+          const savedData = await redisClient.get("categories");
+          console.log("Redis'ten okunan veri:", savedData);
+        } catch (error) {
+          console.error("Redis kayıt hatası:", error);
+        }
+      }
 
-      console.log("İşlenmiş kategoriler:", processedCategories);
+      // Web Programlama kategorisini ekle
+      const webProgramming = {
+        name: "Web Programlama",
+        description: "Web programlama ile ilgili konular ve tartışmalar",
+        recent_posts: [],
+        post_count: 0,
+      };
+      categories.push(webProgramming);
 
       // İstemci HTML istiyorsa HTML formatında yanıt ver
       if (req.headers.accept?.includes("text/html")) {
@@ -96,7 +58,7 @@ class CategoryController {
                   .category-card {
                       transition: transform 0.2s;
                       margin-bottom: 20px;
-                      height: calc(100vh - 250px); /* Sabit yükseklik */
+                      height: calc(100vh - 250px);
                       display: flex;
                       flex-direction: column;
                   }
@@ -120,7 +82,6 @@ class CategoryController {
                   .list-group {
                       margin-bottom: 0;
                   }
-                  /* Scroll bar stilleri */
                   .posts-container::-webkit-scrollbar {
                       width: 8px;
                   }
@@ -144,11 +105,10 @@ class CategoryController {
                       <a href="/" class="btn btn-outline-light">Ana Sayfa</a>
                   </div>
               </nav>
-          
               <div class="container py-5">
                   <h1 class="text-center mb-4">Forum Kategorileri</h1>
                   <div class="row">
-                      ${processedCategories
+                      ${categories
                         .map(
                           (category) => `
                           <div class="col-md-6">
@@ -163,13 +123,13 @@ class CategoryController {
                                           }</p>
                                       </div>
                                       ${
-                                        category.posts &&
-                                        category.posts.length > 0
+                                        category.recent_posts &&
+                                        category.recent_posts.length > 0
                                           ? `
                                           <div class="posts-container">
                                               <h3 class="h5 text-primary">Son Gönderiler</h3>
                                               <div class="list-group">
-                                                  ${category.posts
+                                                  ${category.recent_posts
                                                     .map(
                                                       (post) => `
                                                       <div class="list-group-item">
@@ -213,28 +173,14 @@ class CategoryController {
         res.end(html);
       } else {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(processedCategories));
+        res.end(JSON.stringify(categories));
       }
     } catch (error) {
       console.error("Kategoriler alınırken hata:", error);
-      console.error("Hata detayı:", error.stack);
-
-      if (req.headers.accept?.includes("text/html")) {
-        res.writeHead(500, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(`
-          <div class="alert alert-danger">
-            Kategoriler alınırken bir hata oluştu: ${error.message}
-          </div>
-        `);
-      } else {
-        res.writeHead(500, { "Content-Type": "application/json" });
-        res.end(
-          JSON.stringify({
-            error: "Kategoriler alınırken bir hata oluştu",
-            message: error.message,
-          })
-        );
-      }
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(
+        JSON.stringify({ error: "Kategoriler alınırken bir hata oluştu" })
+      );
     }
   }
 

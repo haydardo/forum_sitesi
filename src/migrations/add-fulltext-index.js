@@ -4,6 +4,7 @@ export async function up(queryInterface, Sequelize) {
   );
 }
 export async function down(queryInterface, Sequelize) {
+  //migration'ı geri almak için kullanılır.
   await queryInterface.sequelize.query(
     ` ALTER TABLE categories DROP INDEX categories_fulltext_idx;`
   );

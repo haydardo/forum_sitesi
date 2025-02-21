@@ -8,14 +8,39 @@ import { sequelize } from "./utilities/db.js";
 import { authRoutes } from "./routes/authRoutes.js";
 import { postRoutes } from "./routes/postRoutes.js";
 import { categoryRoutes } from "./routes/categoryRoutes.js";
-import { getDB } from "./models/index.js";
 import seedCategories from "./seeders/20240320-categories.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Redis bağlantısı
-const redisClient = new Redis();
+const redisClient = new Redis({
+  host: "localhost",
+  port: 6379,
+  enableOfflineQueue: false,
+  retryStrategy: (times) => {
+    const delay = Math.min(times * 50, 2000);
+    return delay;
+  },
+  maxRetriesPerRequest: 3,
+});
 
+redisClient.on("connect", () => {
+  console.log("Redis bağlantısı başarılı");
+});
+
+redisClient.on("error", (err) => {
+  console.log("Redis bağlantı hatası:", err);
+});
+//Redis bağlantısını bekle
+await redisClient.connect().catch((error) => {
+  console.error("Bağlantı hatası", error);
+});
+try {
+  await redisClient.ping();
+  console.log("Redis ping başarılı");
+} catch (error) {
+  console.error("Redis ping hatası", error);
+}
 // Statik dosya sunucusu
 const serveStaticFile = async (req, res) => {
   console.log("İstenen URL:", req.url);
@@ -161,6 +186,8 @@ export function createServer() {
       }
 
       if (parsedUrl.pathname.startsWith("/api/categories")) {
+        console.log("Redis client durum:", redisClient.status);
+        console.log("Redis bağlantısı açık mı:", redisClient.isOpen);
         await categoryRoutes(req, res, redisClient);
         return;
       }

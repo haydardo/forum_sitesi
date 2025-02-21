@@ -1,49 +1,63 @@
 import categoryController from "../controllers/categoryController.js";
 import { sequelize } from "../utilities/db.js";
 
+// SQL sorgusu
+const sqlQuery = `
+  SELECT 
+    c.*,
+    (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+    COALESCE(
+      (
+        SELECT CONCAT('[', 
+          GROUP_CONCAT(
+            JSON_OBJECT(
+              'id', p.id,
+              'title', p.title,
+              'content', SUBSTRING(p.content, 1, 100),
+              'created_at', p.created_at,
+              'author_username', COALESCE(u.username, 'Anonim')
+            )
+          ),
+        ']')
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.category_id = c.id
+        GROUP BY p.category_id
+        ORDER BY p.created_at DESC
+        LIMIT 5
+      ),
+      '[]'
+    ) as recent_posts
+  FROM categories c
+  WHERE c.parent_id IS NULL
+  ORDER BY c.created_at DESC
+`;
+
 // Kategorileri önbellekten veya veritabanından getir
-async function getCategoriesWithCache(redisClient) {
+export async function getCategoriesWithCache(redisClient) {
   try {
-    // Redis bağlantısı varsa önbellekten kontrol et
-    if (redisClient?.isOpen) {
+    // Redis bağlantı kontrolü
+    if (!redisClient) {
+      console.error("Redis client tanımlı değil");
+      return null;
+    }
+
+    console.log("Redis bağlantı durumu:", redisClient.status);
+
+    // Önbellekten veri okuma denemesi
+    try {
       const cachedData = await redisClient.get("categories");
+      console.log("Önbellekten alınan veri:", cachedData);
+
       if (cachedData) {
         console.log("Kategoriler önbellekten alındı");
         return JSON.parse(cachedData);
       }
+    } catch (error) {
+      console.error("Redis okuma hatası:", error);
     }
 
-    const sqlQuery = `
-      SELECT 
-        c.*,
-        (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
-        COALESCE(
-          (
-            SELECT CONCAT('[', 
-              GROUP_CONCAT(
-                JSON_OBJECT(
-                  'id', p.id,
-                  'title', p.title,
-                  'content', SUBSTRING(p.content, 1, 100),
-                  'created_at', p.created_at,
-                  'author_username', COALESCE(u.username, 'Anonim')
-                )
-              ),
-            ']')
-            FROM posts p
-            LEFT JOIN users u ON p.user_id = u.id
-            WHERE p.category_id = c.id
-            GROUP BY p.category_id
-            ORDER BY p.created_at DESC
-            LIMIT 5
-          ),
-          '[]'
-        ) as recent_posts
-      FROM categories c
-      WHERE c.parent_id IS NULL
-      ORDER BY c.created_at DESC
-    `;
-
+    // Veritabanından kategorileri al
     const categories = await sequelize.query(sqlQuery, {
       type: sequelize.QueryTypes.SELECT,
     });
@@ -56,27 +70,33 @@ async function getCategoriesWithCache(redisClient) {
         : [],
     }));
 
-    // Redis bağlantısı varsa önbelleğe kaydet
-    if (redisClient?.isOpen) {
-      await redisClient.setEx(
-        "categories",
-        3600,
-        JSON.stringify(processedCategories)
-      );
-      console.log("Kategoriler önbelleğe kaydedildi");
+    // Redis'e kaydetme denemesi
+    // Redis'e kaydetme denemesi
+    try {
+      if (redisClient.status === "ready") {
+        await redisClient.set(
+          "categories",
+          JSON.stringify(processedCategories),
+          "EX",
+          3600
+        );
+        console.log("Kategoriler Redis'e kaydedildi");
+      }
+    } catch (error) {
+      console.error("Redis yazma hatası:", error);
     }
 
     return processedCategories;
   } catch (error) {
     console.error("Kategori getirme hatası:", error);
-    throw error;
+    return null;
   }
 }
 
+// Ana route handler
 export const categoryRoutes = async (req, res, redisClient) => {
   const method = req.method;
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = url.pathname;
+  const pathname = req.url;
 
   try {
     switch (method) {
@@ -98,7 +118,6 @@ export const categoryRoutes = async (req, res, redisClient) => {
       case "PUT":
         if (pathname.match(/^\/api\/categories\/\d+$/)) {
           const id = pathname.split("/")[3];
-          req.params = { id };
           await categoryController.updateCategory(req, res, id);
         }
         break;
