@@ -5,33 +5,87 @@ class CategoryController {
   // Kategorileri ve son gönderileri al
   async getAllCategories(req, res, redisClient) {
     try {
-      // Redis bağlantısını test et
-      if (redisClient?.isOpen) {
+      // SQL sorgusunu tanımla
+      const sqlQuery = `
+        SELECT 
+          c.*,
+          (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+          COALESCE(
+            (
+              SELECT CONCAT('[', 
+                GROUP_CONCAT(
+                  JSON_OBJECT(
+                    'id', p.id,
+                    'title', REGEXP_REPLACE(p.title, '[\\n\\r\\t]', ' '),
+                    'content', REGEXP_REPLACE(SUBSTRING(p.content, 1, 100), '[\\n\\r\\t]', ' '),
+                    'created_at', DATE_FORMAT(p.created_at, '%Y-%m-%dT%H:%i:%s.000Z'),
+                    'author_username', COALESCE(u.username, 'Anonim')
+                  )
+                ),
+              ']')
+              FROM posts p
+              LEFT JOIN users u ON p.user_id = u.id
+              WHERE p.category_id = c.id
+              GROUP BY p.category_id
+              ORDER BY p.created_at DESC
+              LIMIT 5
+            ),
+            '[]'
+          ) as recent_posts
+        FROM categories c
+        WHERE c.parent_id IS NULL
+        ORDER BY c.created_at DESC
+      `;
+
+      // Veritabanından kategorileri al
+      const categories = await sequelize.query(sqlQuery, {
+        type: sequelize.QueryTypes.SELECT,
+      });
+
+      // Kategorileri işle
+      const processedCategories = categories.map((category) => {
         try {
-          await redisClient.ping();
-          console.log("Redis bağlantısı aktif");
-          await redisClient.del("categories");
-          console.log("Redis önbelleği temizlendi");
+          let recent_posts = [];
+          if (category.recent_posts && category.recent_posts !== "[]") {
+            // JSON parse işleminden önce string temizleme
+            const cleanJson = category.recent_posts
+              .replace(/[\u0000-\u001F\u007F-\u009F]/g, "")
+              .replace(/\\/g, "\\\\");
+            recent_posts = JSON.parse(cleanJson);
+          }
+          return {
+            ...category,
+            recent_posts,
+          };
         } catch (error) {
-          console.error("Redis bağlantı hatası:", error);
+          console.error("JSON parse hatası:", error);
+          return {
+            ...category,
+            recent_posts: [],
+          };
         }
-      }
+      });
 
-      const categories = await getCategoriesWithCache(redisClient);
-
-      // Redis'e veri kaydetme ve kontrol
+      // Redis'e kaydet
       if (redisClient?.isOpen) {
-        const categoriesString = JSON.stringify(categories);
-        console.log("Redis'e kaydedilecek veri:", categoriesString);
-
         try {
-          await redisClient.setEx("categories", 3600, categoriesString);
+          await redisClient.del("categories");
+          await redisClient.del("all_posts");
 
-          // Kaydedilen veriyi kontrol et
-          const savedData = await redisClient.get("categories");
-          console.log("Redis'ten okunan veri:", savedData);
+          const cleanData = JSON.stringify(
+            processedCategories,
+            (key, value) => {
+              if (typeof value === "string") {
+                return value.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+              }
+              return value;
+            }
+          );
+
+          await redisClient.setEx("categories", 3600, cleanData);
+          console.log("Kategoriler Redis'e kaydedildi");
         } catch (error) {
-          console.error("Redis kayıt hatası:", error);
+          console.error("Redis işlem hatası:", error);
         }
       }
 
@@ -42,7 +96,7 @@ class CategoryController {
         recent_posts: [],
         post_count: 0,
       };
-      categories.push(webDevelopment);
+      processedCategories.push(webDevelopment);
 
       // İstemci HTML istiyorsa HTML formatında yanıt ver
       if (req.headers.accept?.includes("text/html")) {
@@ -108,7 +162,7 @@ class CategoryController {
               <div class="container py-5">
                   <h1 class="text-center mb-4">Forum Kategorileri</h1>
                   <div class="row">
-                      ${categories
+                      ${processedCategories
                         .map(
                           (category) => `
                           <div class="col-md-6">
@@ -173,14 +227,12 @@ class CategoryController {
         res.end(html);
       } else {
         res.writeHead(200, { "Content-Type": "application/json" });
-        res.end(JSON.stringify(categories));
+        res.end(JSON.stringify(processedCategories));
       }
     } catch (error) {
-      console.error("Kategoriler alınırken hata:", error);
+      console.error("Kategori getirme hatası:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({ error: "Kategoriler alınırken bir hata oluştu" })
-      );
+      res.end(JSON.stringify({ message: "Kategoriler alınamadı" }));
     }
   }
 
@@ -276,6 +328,13 @@ class CategoryController {
         }
       );
 
+      // Redis önbelleğini temizle
+      if (redisClient?.isOpen) {
+        await redisClient.del("categories");
+        await redisClient.del("all_posts");
+        console.log("Yeni kategori oluşturuldu, Redis önbelleği temizlendi");
+      }
+
       res.writeHead(201, { "Content-Type": "application/json" });
       res.end(JSON.stringify(newCategory));
     } catch (error) {
@@ -315,6 +374,13 @@ class CategoryController {
         }
       );
 
+      // Redis önbelleğini temizle
+      if (redisClient?.isOpen) {
+        await redisClient.del("categories");
+        await redisClient.del("all_posts");
+        console.log("Kategori güncellemesi sonrası Redis önbelleği temizlendi");
+      }
+
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify(updatedCategory));
     } catch (error) {
@@ -334,6 +400,13 @@ class CategoryController {
         replacements: { categoryId },
         type: sequelize.QueryTypes.DELETE,
       });
+
+      // Redis önbelleğini temizle
+      if (redisClient?.isOpen) {
+        await redisClient.del("categories");
+        await redisClient.del("all_posts");
+        console.log("Kategori silindi, Redis önbelleği temizlendi");
+      }
 
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ message: "Kategori başarıyla silindi" }));

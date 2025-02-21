@@ -56,6 +56,7 @@ async function handlePostRequest(req, res) {
     const { title, content, categoryId } = req.body;
     const contentAnalysis = await analyzeContent(content);
     console.log("İçerik analizi sonucu:", contentAnalysis);
+
     if (!title || !content || !categoryId) {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(
@@ -66,6 +67,7 @@ async function handlePostRequest(req, res) {
       return;
     }
 
+    // Post oluştur
     const post = await Post.create({
       title,
       content,
@@ -74,70 +76,72 @@ async function handlePostRequest(req, res) {
       topicId: null,
     });
 
-    if (redisClient.isReady) {
-      await redisClient.del("all_posts");
-      await redisClient.del("categories");
-    }
-
-    if (!res.headersSent) {
-      res.writeHead(201, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          success: true,
-          data: post,
-        })
-      );
-    }
-
-    // Yeni kategori verilerini al ve Redis'e kaydet
+    // Kategorileri güncelle
     const sqlQuery = `
-    SELECT 
-      c.*,
-      (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
-      COALESCE(
-        (
-          SELECT CONCAT('[', 
-            GROUP_CONCAT(
-              JSON_OBJECT(
-                'id', p.id,
-                'title', p.title,
-                'content', SUBSTRING(p.content, 1, 100),
-                'created_at', p.created_at,
-                'author_username', COALESCE(u.username, 'Anonim')
-              )
-            ),
-          ']')
-          FROM posts p
-          LEFT JOIN users u ON p.user_id = u.id
-          WHERE p.category_id = c.id
-          GROUP BY p.category_id
-          ORDER BY p.created_at DESC
-          LIMIT 5
-        ),
-        '[]'
-      ) as recent_posts
-    FROM categories c
-    WHERE c.parent_id IS NULL
-    ORDER BY c.created_at DESC
-  `;
+      SELECT 
+        c.*,
+        (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+        COALESCE(
+          (
+            SELECT CONCAT('[', 
+              GROUP_CONCAT(
+                CONCAT(
+                  '{"id":', p.id,
+                  ',"title":"', REPLACE(p.title, '"', '\\"'),
+                  '","content":"', REPLACE(SUBSTRING(p.content, 1, 100), '"', '\\"'),
+                  '","created_at":"', DATE_FORMAT(p.created_at, '%Y-%m-%dT%H:%i:%s.000Z'),
+                  '","author_username":"', COALESCE(u.username, 'Anonim'),
+                  '"}'
+                )
+              ),
+            ']')
+            FROM posts p
+            LEFT JOIN users u ON p.user_id = u.id
+            WHERE p.category_id = c.id
+            GROUP BY p.category_id
+            ORDER BY p.created_at DESC
+            LIMIT 5
+          ),
+          '[]'
+        ) as recent_posts
+      FROM categories c
+      WHERE c.parent_id IS NULL
+      ORDER BY c.created_at DESC
+    `;
+
     const categories = await sequelize.query(sqlQuery, {
       type: sequelize.QueryTypes.SELECT,
     });
 
-    if (categories) {
-      await redisClient.setEx("categories", 3600, JSON.stringify(categories));
+    // Redis'i güncelle
+    try {
+      if (redisClient.status === "ready") {
+        await redisClient.del("all_posts");
+        await redisClient.del("categories");
+        if (categories) {
+          await redisClient.set(
+            "categories",
+            JSON.stringify(categories),
+            "EX",
+            3600
+          );
+        }
+        console.log("Redis önbelleği güncellendi");
+      }
+    } catch (error) {
+      console.error("Redis güncelleme hatası:", error);
     }
 
-    if (!res.headersSent) {
-      res.writeHead(201, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          success: true,
-          data: post,
-        })
-      );
-    }
+    // Yanıtı gönder
+    res.writeHead(201, { "Content-Type": "application/json" });
+    res.end(
+      JSON.stringify({
+        success: true,
+        data: post,
+      })
+    );
   } catch (error) {
+    console.error("Post oluşturma hatası:", error);
     if (!res.headersSent) {
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(
