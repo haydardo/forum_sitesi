@@ -36,7 +36,36 @@ class CategoryController {
         WHERE c.parent_id IS NULL
         ORDER BY c.created_at DESC
       `;
+      if (redisClient?.isOpen) {
+        try {
+          await redisClient.del("categories");
+          await redisClient.del("all_posts");
 
+          const cleanData = JSON.stringify(
+            processedCategories,
+            (key, value) => {
+              if (typeof value === "string") {
+                return value.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+              }
+              return value;
+            }
+          );
+          try {
+            const cachedData = await redisClient.get("categories");
+
+            if (cachedData) {
+              console.log("Kategoriler önbellekten alındı");
+              return JSON.parse(cachedData);
+            }
+          } catch (error) {
+            console.error("Redis okuma hatası:", error);
+          }
+          await redisClient.setEx("categories", 3600, cleanData);
+          console.log("Kategoriler Redis'e kaydedildi");
+        } catch (error) {
+          console.error("Redis işlem hatası:", error);
+        }
+      }
       // Veritabanından kategorileri al
       const categories = await sequelize.query(sqlQuery, {
         type: sequelize.QueryTypes.SELECT,
@@ -65,29 +94,6 @@ class CategoryController {
           };
         }
       });
-
-      // Redis'e kaydet
-      if (redisClient?.isOpen) {
-        try {
-          await redisClient.del("categories");
-          await redisClient.del("all_posts");
-
-          const cleanData = JSON.stringify(
-            processedCategories,
-            (key, value) => {
-              if (typeof value === "string") {
-                return value.replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
-              }
-              return value;
-            }
-          );
-
-          await redisClient.setEx("categories", 3600, cleanData);
-          console.log("Kategoriler Redis'e kaydedildi");
-        } catch (error) {
-          console.error("Redis işlem hatası:", error);
-        }
-      }
 
       // Web Geliştirme kategorisini ekle
       const webDevelopment = {
