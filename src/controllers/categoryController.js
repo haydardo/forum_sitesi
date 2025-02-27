@@ -92,15 +92,6 @@ class CategoryController {
         }
       });
 
-      // Web Geliştirme kategorisini ekle
-      const webDevelopment = {
-        name: "Web Geliştirme",
-        description: "Web programlama ile ilgili konular ve tartışmalar",
-        recent_posts: [],
-        post_count: 0,
-      };
-      processedCategories.push(webDevelopment);
-
       // İstemci HTML istiyorsa HTML formatında yanıt ver
       if (req.headers.accept?.includes("text/html")) {
         const html = `
