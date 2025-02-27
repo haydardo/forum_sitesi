@@ -69,7 +69,7 @@ export const seedDb = async () => {
         await sequelize.query(
           `
           INSERT INTO categories (name, slug, description, parent_id)
-          VALUES ('Web Geliştirme', 'web-gelistirme', 'Web geliştirme konuları', :parentId)
+          VALUES ('Web Geliştirme', 'web-gelistirme', 'Web geliştirme konuları', NULL)
         `,
           {
             replacements: { parentId: programmingCategory[0].id },

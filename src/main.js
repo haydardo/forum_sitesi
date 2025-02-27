@@ -205,6 +205,7 @@ async function startApp() {
   try {
     await initializeDatabase();
     await startServer();
+    console.log("RabbitMQ mesaj dinleme başlatıldı.");
   } catch (error) {
     console.error("Uygulama başlatılırken hata:", error);
     process.exit(1);

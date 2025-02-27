@@ -19,7 +19,6 @@ async function seedCategories() {
         name: "Web Geliştirme",
         description: "Web geliştirme konuları",
         slug: "web-gelistirme",
-        parent_id: 2, // Programlama kategorisinin alt kategorisi
       },
     ];
 

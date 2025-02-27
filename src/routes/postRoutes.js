@@ -3,6 +3,7 @@ import { sequelize } from "../utilities/db.js";
 import { spawn } from "child_process";
 import Post from "../models/Post.js";
 import redisClient from "../config/redis.js";
+import messageService from "../services/messageService.js";
 async function analyzeContent(content) {
   return new Promise((resolve, reject) => {
     const python = spawn("python", ["python_scripts/content_analyzer.py"]);
@@ -74,6 +75,15 @@ async function handlePostRequest(req, res) {
       categoryId,
       userId: decoded.id,
       topicId: null,
+    });
+    await messageService.sendMessage(messageService.QUEUE_NAME, {
+      type: "create_post",
+      data: {
+        title,
+        content,
+        categoryId,
+        userId: decoded.id,
+      },
     });
 
     // Kategorileri güncelle
@@ -425,4 +435,4 @@ export const postRoutes = async (req, res) => {
   }
 };
 
-export default postRoutes;
+export default { postRoutes, handlePostRequest, handleGetRequest };

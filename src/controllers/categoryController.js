@@ -38,9 +38,6 @@ class CategoryController {
       `;
       if (redisClient?.isOpen) {
         try {
-          await redisClient.del("categories");
-          await redisClient.del("all_posts");
-
           const cleanData = JSON.stringify(
             processedCategories,
             (key, value) => {
