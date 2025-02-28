@@ -55,27 +55,8 @@ async function handlePostRequest(req, res) {
     }
 
     const { title, content, categoryId } = req.body;
-    const contentAnalysis = await analyzeContent(content);
-    console.log("İçerik analizi sonucu:", contentAnalysis);
 
-    if (!title || !content || !categoryId) {
-      res.writeHead(400, { "Content-Type": "application/json" });
-      res.end(
-        JSON.stringify({
-          message: "Başlık, içerik ve kategori alanları zorunludur",
-        })
-      );
-      return;
-    }
-
-    // Post oluştur
-    const post = await Post.create({
-      title,
-      content,
-      categoryId,
-      userId: decoded.id,
-      topicId: null,
-    });
+    // Post oluşturma işlemini kaldırdık, sadece RabbitMQ'ya mesaj gönderiyoruz
     await messageService.sendMessage(messageService.QUEUE_NAME, {
       type: "create_post",
       data: {
@@ -98,9 +79,9 @@ async function handlePostRequest(req, res) {
                 CONCAT(
                   '{"id":', p.id,
                   ',"title":"', REPLACE(p.title, '"', '\\"'),
-                  '","content":"', REPLACE(SUBSTRING(p.content, 1, 100), '"', '\\"'),
-                  '","created_at":"', DATE_FORMAT(p.created_at, '%Y-%m-%dT%H:%i:%s.000Z'),
-                  '","author_username":"', COALESCE(u.username, 'Anonim'),
+                  ',"content":"', REPLACE(SUBSTRING(p.content, 1, 100), '"', '\\"'),
+                  ',"created_at":"', DATE_FORMAT(p.created_at, '%Y-%m-%dT%H:%i:%s.000Z'),
+                  ',"author_username":"', COALESCE(u.username, 'Anonim'),
                   '"}'
                 )
               ),
@@ -126,28 +107,47 @@ async function handlePostRequest(req, res) {
     // Redis'i güncelle
     try {
       if (redisClient.status === "ready") {
+        console.log("Redis bağlantısı hazır, önbellek güncelleniyor...");
+
+        // Önce mevcut anahtarları kontrol et
+        const existingKeys = await redisClient.keys("*");
+        console.log("Mevcut Redis anahtarları:", existingKeys);
+
+        // Önbelleği temizle
         await redisClient.del("all_posts");
         await redisClient.del("categories");
-        if (categories) {
-          await redisClient.set(
+
+        // Kategorileri kaydet
+        if (categories && categories.length > 0) {
+          const setResult = await redisClient.set(
             "categories",
             JSON.stringify(categories),
             "EX",
             3600
           );
+          console.log("Redis set işlemi sonucu:", setResult);
+
+          // Kaydedilen anahtarları kontrol et
+          const keysAfterSet = await redisClient.keys("*");
+          console.log("Redis set işleminden sonra anahtarlar:", keysAfterSet);
+        } else {
+          console.log("Kaydedilecek kategori verisi bulunamadı");
         }
+
         console.log("Redis önbelleği güncellendi");
+      } else {
+        console.log("Redis bağlantısı hazır değil, durum:", redisClient.status);
       }
     } catch (error) {
       console.error("Redis güncelleme hatası:", error);
     }
 
-    // Yanıtı gönder
+    // Yanıtı gönder - post değişkeni yerine başarı mesajı gönderiyoruz
     res.writeHead(201, { "Content-Type": "application/json" });
     res.end(
       JSON.stringify({
         success: true,
-        data: post,
+        message: "Post oluşturma isteği kuyruğa alındı.",
       })
     );
   } catch (error) {
