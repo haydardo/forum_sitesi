@@ -1,83 +1,99 @@
-const { Category, Post, User } = require("../models");
-const categoryController = require("../controllers/categoryController");
-const path = require("path");
-const fs = require("fs").promises;
+import categoryController from "../controllers/categoryController.js";
+import { sequelize } from "../utilities/db.js";
+
+// SQL sorgusu
+const sqlQuery = `
+  SELECT 
+    c.*,
+    (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+    COALESCE(
+      (
+        SELECT CONCAT('[', 
+          GROUP_CONCAT(
+            JSON_OBJECT(
+              'id', p.id,
+              'title', p.title,
+              'content', SUBSTRING(p.content, 1, 100),
+              'created_at', p.created_at,
+              'author_username', COALESCE(u.username, 'Anonim')
+            )
+          ),
+        ']')
+        FROM posts p
+        LEFT JOIN users u ON p.user_id = u.id
+        WHERE p.category_id = c.id
+        GROUP BY p.category_id
+        ORDER BY p.created_at DESC
+        LIMIT 5
+      ),
+      '[]'
+    ) as recent_posts
+  FROM categories c
+  WHERE c.parent_id IS NULL
+  ORDER BY c.created_at DESC
+`;
 
 // Kategorileri önbellekten veya veritabanından getir
-async function getCategoriesWithCache(redisClient) {
+export async function getCategoriesWithCache(redisClient) {
   try {
-    // Redis bağlantısı varsa önbellekten kontrol et
-    if (redisClient?.isOpen) {
+    // Redis bağlantı kontrolü
+    if (!redisClient) {
+      console.error("Redis client tanımlı değil");
+      return null;
+    }
+
+    console.log("Redis bağlantı durumu:", redisClient.status);
+
+    // Önbellekten veri okuma denemesi
+    try {
       const cachedData = await redisClient.get("categories");
+
       if (cachedData) {
         console.log("Kategoriler önbellekten alındı");
         return JSON.parse(cachedData);
       }
+    } catch (error) {
+      console.error("Redis okuma hatası:", error);
     }
 
-    // Veritabanından getir
-    const categories = await Category.findAll({
-      include: [
-        {
-          model: Category,
-          as: "subCategories",
-          attributes: ["id", "name", "description"],
-        },
-        {
-          model: Post,
-          as: "posts",
-          attributes: ["id", "title", "content", "created_at"],
-          include: [
-            {
-              model: User,
-              as: "author",
-              attributes: ["username"],
-            },
-          ],
-          order: [["created_at", "DESC"]],
-          separate: true,
-        },
-      ],
-      where: {
-        parent_id: null,
-      },
-      attributes: ["id", "name", "slug", "description"],
+    // Veritabanından kategorileri al
+    const categories = await sequelize.query(sqlQuery, {
+      type: sequelize.QueryTypes.SELECT,
     });
 
-    // Tarih alanlarını düzenle
-    const formattedCategories = categories.map((category) => {
-      const posts = category.posts.map((post) => ({
-        ...post.get(),
-        createdAt: post.created_at,
-        updatedAt: post.updated_at,
-      }));
-      return {
-        ...category.get(),
-        posts: posts,
-      };
-    });
-
-    // Redis bağlantısı varsa önbelleğe kaydet
-    if (redisClient?.isOpen) {
-      await redisClient.setEx(
-        "categories",
-        3600,
-        JSON.stringify(formattedCategories)
-      );
-      console.log("Kategoriler önbelleğe kaydedildi");
+    // Kategorileri işle
+    const processedCategories = categories.map((category) => ({
+      ...category,
+      recent_posts: category.recent_posts
+        ? JSON.parse(category.recent_posts)
+        : [],
+    }));
+    // Redis'e kaydetme denemesi
+    try {
+      if (redisClient.status === "ready") {
+        await redisClient.set(
+          "categories",
+          JSON.stringify(processedCategories),
+          "EX",
+          3600
+        );
+        console.log("Kategoriler Redis'e kaydedildi");
+      }
+    } catch (error) {
+      console.error("Redis yazma hatası:", error);
     }
 
-    return formattedCategories;
+    return processedCategories;
   } catch (error) {
     console.error("Kategori getirme hatası:", error);
-    throw error;
+    return null;
   }
 }
 
-async function categoryRoutes(req, res, redisClient) {
+// Ana route handler
+export const categoryRoutes = async (req, res, redisClient) => {
   const method = req.method;
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = url.pathname;
+  const pathname = req.url;
 
   try {
     switch (method) {
@@ -119,6 +135,6 @@ async function categoryRoutes(req, res, redisClient) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ message: "Sunucu hatası", error: error.message }));
   }
-}
+};
 
-module.exports = categoryRoutes;
+export default categoryRoutes;

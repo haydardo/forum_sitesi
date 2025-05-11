@@ -1,6 +1,6 @@
-const authController = require("../controllers/authController");
-
-async function authRoutes(req, res) {
+import authController from "../controllers/authController.js";
+import limiter from "../middleware/rateLimitMiddleware.js"; // Rate limiting middleware'ını içe aktar
+export const authRoutes = async (req, res) => {
   const method = req.method;
   const url = req.url;
 
@@ -8,9 +8,9 @@ async function authRoutes(req, res) {
     switch (method) {
       case "POST":
         if (url === "/api/auth/register") {
-          await authController.register(req, res);
+          await limiter(req, res, () => authController.register(req, res));
         } else if (url === "/api/auth/login") {
-          await authController.login(req, res);
+          await limiter(req, res, () => authController.login(req, res));
         } else if (url === "/api/auth/logout") {
           await authController.logout(req, res);
         }
@@ -24,6 +24,6 @@ async function authRoutes(req, res) {
     res.writeHead(500, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ message: "Sunucu hatası" }));
   }
-}
+};
 
-module.exports = authRoutes;
+export default authRoutes;

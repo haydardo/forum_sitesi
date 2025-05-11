@@ -1,6 +1,4 @@
 const API = {
-  baseUrl: "http://localhost:3001/api",
-
   //Wrapper ile bütün api işlemleri tek bir yerde yönetilebilir.
   // Gönderiler
   getPosts: async () => {
@@ -16,26 +14,28 @@ const API = {
 
   createPost: async (postData) => {
     try {
+      const token = localStorage.getItem("token");
+
+      if (!token) {
+        throw new Error("Lütfen önce giriş yapın");
+      }
+
       const response = await fetch("/api/posts", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
+          Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify(postData),
       });
 
-      const data = await response.json();
-
       if (!response.ok) {
-        const error = new Error(data.message);
-        error.response = data;
-        throw error;
+        const error = await response.json();
+        throw new Error(error.message || "Post oluşturulurken bir hata oluştu");
       }
 
-      return data;
+      return await response.json();
     } catch (error) {
-      console.error("Gönderi oluşturma hatası:", error);
       throw error;
     }
   },
@@ -53,7 +53,7 @@ const API = {
   // Kullanıcı işlemleri
   async login(username, password) {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/login`, {
+      const response = await fetch(`/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -78,7 +78,7 @@ const API = {
 
   async register(username, email, password) {
     try {
-      const response = await fetch(`${this.baseUrl}/auth/register`, {
+      const response = await fetch(`/api/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -108,16 +108,18 @@ const API = {
       const response = await fetch("/api/categories", {
         method: "GET",
         headers: {
-          Accept: "application/json",
           "Content-Type": "application/json",
-          Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
       });
 
-      if (!response.ok) throw new Error("Kategoriler alinamadi");
-      return await response.json();
+      if (!response.ok) {
+        throw new Error("Kategoriler alınamadı");
+      }
+
+      const data = await response.json();
+      return data;
     } catch (error) {
-      console.error("Hata:", error);
+      console.error("Kategoriler yüklenirken hata:", error);
       throw error;
     }
   },
@@ -139,6 +141,20 @@ const API = {
       return data;
     } catch (error) {
       console.error("Beğeni hatası:", error);
+      throw error;
+    }
+  },
+
+  // Arama işlemleri
+  searchPosts: async (query) => {
+    try {
+      const response = await fetch(
+        `/api/posts/search?q=${encodeURIComponent(query)}`
+      );
+      if (!response.ok) throw new Error("Arama yapılamadı");
+      return await response.json();
+    } catch (error) {
+      console.error("Arama hatası:", error);
       throw error;
     }
   },

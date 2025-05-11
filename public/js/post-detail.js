@@ -108,10 +108,8 @@ document.addEventListener("DOMContentLoaded", async () => {
         });
 
         if (!response.ok) throw new Error("Yorum gönderilemedi");
-
         const newComment = await response.json();
-
-        // Yeni yorumu hemen göster
+        //Yorumu hemen göstersin diye
         const commentsContainer = document.getElementById("comments-container");
         const commentElement = document.createElement("div");
         commentElement.classList.add("comment", "mb-3", "p-3", "border-bottom");
@@ -119,29 +117,21 @@ document.addEventListener("DOMContentLoaded", async () => {
           <div class="d-flex justify-content-between align-items-center mb-2">
             <div class="comment-author">
               <i class="bi bi-person-circle"></i>
-              <strong>${localStorage.getItem("username") || "Anonim"}</strong>
+              <strong>${newComment.author?.username || "Anonim"}</strong>
             </div>
             <small class="text-muted">
-              ${new Date().toLocaleString("tr-TR")}
+              ${new Date(newComment.created_at).toLocaleString("tr-TR")}
             </small>
           </div>
           <div class="comment-content">
-            ${commentContent}
+            ${newComment.content}
           </div>
         `;
-
-        // Yeni yorumu en üste ekle
-        if (commentsContainer.firstChild) {
-          commentsContainer.insertBefore(
-            commentElement,
-            commentsContainer.firstChild
-          );
-        } else {
-          commentsContainer.appendChild(commentElement);
-        }
-
+        commentsContainer.prepend(commentElement); // Yeni yorumu en üste ekle
         // Formu temizle
         commentForm.reset();
+
+        // Yorumları yeniden yükle
       } catch (error) {
         console.error("Yorum gönderme hatası:", error);
         alert("Yorum gönderilirken bir hata oluştu");
@@ -231,30 +221,36 @@ async function loadComments() {
       ? comments
           .map(
             (comment) => `
-          <div class="comment mb-3 p-3 border-bottom">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <div class="comment-author">
-                <i class="bi bi-person-circle"></i>
-                <strong>${comment.author?.username || "Anonim"}</strong>
+            <div class="comment mb-3 p-3 border-bottom">
+              <div class="d-flex justify-content-between align-items-center mb-2">
+                <div class="comment-author">
+                  <i class="bi bi-person-circle"></i>
+                  <strong>${comment.author?.username || "Anonim"}</strong>
+                </div>
+                <small class="text-muted">
+                  ${new Date(comment.created_at).toLocaleString("tr-TR", {
+                    year: "numeric",
+                    month: "long",
+                    day: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </small>
               </div>
-              <small class="text-muted">
-                ${new Date(comment.created_at).toLocaleString("tr-TR")}
-              </small>
+              <div class="comment-content">
+                ${comment.content}
+              </div>
             </div>
-            <div class="comment-content">
-              ${comment.content}
-            </div>
-          </div>
-        `
+          `
           )
           .join("")
       : '<div class="text-muted">Henüz yorum yapılmamış</div>';
   } catch (error) {
     console.error("Yorumları yükleme hatası:", error);
     commentsContainer.innerHTML = `
-      <div class="alert alert-danger">
-        Yorumlar yüklenirken bir hata oluştu
-      </div>
-    `;
+        <div class="alert alert-danger">
+          Yorumlar yüklenirken bir hata oluştu
+        </div>
+      `;
   }
 }

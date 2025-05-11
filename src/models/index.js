@@ -1,53 +1,72 @@
-const fs = require("fs");
-const path = require("path");
-const Sequelize = require("sequelize");
-const config = require("../../config/config.json")["development"];
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+import Sequelize from "sequelize";
+import { readFile } from "fs/promises";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 const db = {};
 
-//Bütün modelleri burada toplayıp, ilişki kuruyoruz. Dairesel bağımlılık oluşturmamak için.
-const sequelize = new Sequelize(
-  config.database,
-  config.username,
-  config.password,
-  {
-    host: config.host,
-    dialect: config.dialect,
-    port: config.port,
-    timezone: config.timezone,
-    logging: false,
-  }
-);
+// Config ve bağlantı kurulumu için async fonksiyon
+async function initializeDB() {
+  const configPath = path.resolve(__dirname, "../../config/config.json");
+  const configJson = JSON.parse(await readFile(configPath, "utf8"));
+  const development = configJson.development;
 
-const userModelPath = path.join(__dirname, "User.js"); // __dirname: Mevcut dizinin yolu (src/models), User.js ile birleştiriyor.
-const userModel = require(userModelPath)(sequelize, Sequelize.DataTypes);
-db[userModel.name] = userModel;
+  const sequelize = new Sequelize(
+    development.database,
+    development.username,
+    development.password,
+    {
+      host: development.host,
+      dialect: development.dialect,
+      port: development.port,
+      timezone: development.timezone,
+      logging: false,
+    }
+  );
 
-// Diğer model dosyalarını otomatik yükle
-fs.readdirSync(__dirname)
-  .filter((file) => {
-    return (
-      file.indexOf(".") !== 0 &&
-      file !== path.basename(__filename) &&
-      file !== "User.js" &&
-      file.slice(-3) === ".js" &&
-      file.indexOf(".test.js") === -1
+  // Tüm modelleri yükle
+  const modelFiles = fs
+    .readdirSync(__dirname)
+    .filter(
+      (file) =>
+        file.indexOf(".") !== 0 &&
+        file !== "index.js" &&
+        file.slice(-3) === ".js"
     );
-  })
-  .forEach((file) => {
-    const modelDefiner = require(path.join(__dirname, file));
-    if (typeof modelDefiner === "function") {
-      const model = modelDefiner(sequelize, Sequelize.DataTypes); // modelDefiner: Model tanımlayıcı fonksiyon
-      db[model.name] = model;
+
+  for (const file of modelFiles) {
+    const modelPath = new URL(`./${file}`, import.meta.url);
+    const { default: model } = await import(modelPath);
+    const modelName = file.split(".")[0];
+    db[modelName] = model;
+  }
+
+  // İlişkileri kur
+  Object.keys(db).forEach((modelName) => {
+    if (db[modelName].associate) {
+      db[modelName].associate(db);
     }
   });
-// Model ilişkilerini kur
-Object.keys(db).forEach((modelName) => {
-  if (db[modelName].associate) {
-    db[modelName].associate(db);
+
+  db.sequelize = sequelize;
+  db.Sequelize = Sequelize;
+
+  return db;
+}
+
+// DB'yi başlat
+let database = null;
+
+export async function getDB() {
+  if (!database) {
+    database = await initializeDB();
   }
-});
+  return database;
+}
 
-db.sequelize = sequelize; // Veritabanı işlemleri için
-db.Sequelize = Sequelize; // Veri tipleri ve operatörler için
-
-module.exports = db;
+// Sadece getDB fonksiyonunu export et
+export default { getDB };
