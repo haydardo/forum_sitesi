@@ -1,6 +1,6 @@
 # Forum Sistemi
 
-Bu proje, kullanıcıların gönderiler oluşturabileceği, beğenebileceği ve kategorileri yönetebileceği bir forum sistemi uygulamasıdır. RabbitMQ kullanılarak asenkron mesajlaşma sağlanmaktadır.
+Bu proje, kullanıcıların gönderiler oluşturabileceği, beğenebileceği ve kategorileri yönetebileceği bir forum sistemi uygulamasıdır. RabbitMQ kullanılarak asenkron mesajlaşma sağlanmaktadır, projede hiçbir framework kullanılmamıştır.
 
 ## Özellikler
 
