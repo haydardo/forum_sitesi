@@ -10,6 +10,7 @@ import { postRoutes } from "./routes/postRoutes.js";
 import { categoryRoutes } from "./routes/categoryRoutes.js";
 import seedCategories from "./seeders/20240320-categories.js";
 import redisClient from "./config/redis.js";
+import { startPostConsumer } from "./services/postConsumer.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
@@ -205,7 +206,7 @@ async function startApp() {
   try {
     await initializeDatabase();
     await startServer();
-    console.log("RabbitMQ mesaj dinleme başlatıldı.");
+    await startPostConsumer();
   } catch (error) {
     console.error("Uygulama başlatılırken hata:", error);
     process.exit(1);

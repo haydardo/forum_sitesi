@@ -5,7 +5,7 @@
     "database": "kullanici_yonetim_sistemi",
     "host": "127.0.0.1",
     "dialect": "mysql",
-    "port": 3306,
+    "port": 3307,
     "timezone": "+03:00",
     "dialectOptions": {
       "dateStrings": true,
@@ -18,7 +18,7 @@
     "database": "kullanici_yonetim_sistemi_test",
     "host": "127.0.0.1",
     "dialect": "mysql",
-    "port": 3306,
+    "port": 3307,
     "timezone": "+03:00",
     "dialectOptions": {
       "dateStrings": true,

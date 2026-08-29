@@ -6,22 +6,20 @@ class Post {
   static async create(postData) {
     const sql = `
       INSERT INTO posts (
-        title, 
-        content, 
-        category_id, 
-        user_id, 
-        topic_id, 
-        parent_id, 
+        title,
+        content,
+        user_id,
+        topic_id,
+        parent_id,
         is_solution,
         created_at,
         updated_at
       ) VALUES (
-        :title, 
-        :content, 
-        :categoryId, 
-        :userId, 
-        :topicId, 
-        :parentId, 
+        :title,
+        :content,
+        :userId,
+        :topicId,
+        :parentId,
         :isSolution,
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
@@ -33,9 +31,8 @@ class Post {
         replacements: {
           title: postData.title,
           content: postData.content,
-          categoryId: postData.categoryId,
           userId: postData.userId,
-          topicId: postData.topicId || null,
+          topicId: postData.topicId,
           parentId: postData.parentId || null,
           isSolution: postData.isSolution || false,
         },
@@ -78,8 +75,8 @@ class Post {
              ) as comments
       FROM posts p
       LEFT JOIN users u ON p.user_id = u.id
-      LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN topics t ON p.topic_id = t.id
+      LEFT JOIN categories c ON t.category_id = c.id
       WHERE p.id = :id
     `;
 
@@ -103,8 +100,8 @@ class Post {
              t.title as topic_title
       FROM posts p
       LEFT JOIN users u ON p.user_id = u.id
-      LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN topics t ON p.topic_id = t.id
+      LEFT JOIN categories c ON t.category_id = c.id
       ORDER BY p.created_at DESC
     `;
 
@@ -212,8 +209,8 @@ class Post {
              t.title as topic_title
       FROM posts p
       LEFT JOIN users u ON p.user_id = u.id
-      LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN topics t ON p.topic_id = t.id
+      LEFT JOIN categories c ON t.category_id = c.id
       WHERE MATCH(p.title, p.content) AGAINST(:query IN BOOLEAN MODE)
       ORDER BY p.created_at DESC
     `;

@@ -7,12 +7,17 @@ class CategoryController {
     try {
       // SQL sorgusunu tanımla
       const sqlQuery = `
-        SELECT 
+        SELECT
           c.*,
-          (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+          (
+            SELECT COUNT(*)
+            FROM posts pc
+            JOIN topics tc ON pc.topic_id = tc.id
+            WHERE tc.category_id = c.id
+          ) as post_count,
           COALESCE(
             (
-              SELECT CONCAT('[', 
+              SELECT CONCAT('[',
                 GROUP_CONCAT(
                   JSON_OBJECT(
                     'id', p.id,
@@ -24,9 +29,10 @@ class CategoryController {
                 ),
               ']')
               FROM posts p
+              JOIN topics t ON p.topic_id = t.id
               LEFT JOIN users u ON p.user_id = u.id
-              WHERE p.category_id = c.id
-              GROUP BY p.category_id
+              WHERE t.category_id = c.id
+              GROUP BY t.category_id
               ORDER BY p.created_at DESC
               LIMIT 5
             ),
@@ -236,11 +242,16 @@ class CategoryController {
       const categoryId = req.params.id;
       const sql = `
         SELECT c.*,
-               p.name as parent_name,
-               (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+               parent.name as parent_name,
+               (
+                 SELECT COUNT(*)
+                 FROM posts pc
+                 JOIN topics tc ON pc.topic_id = tc.id
+                 WHERE tc.category_id = c.id
+               ) as post_count,
                COALESCE(
                  (
-                   SELECT CONCAT('[', 
+                   SELECT CONCAT('[',
                      GROUP_CONCAT(
                        JSON_OBJECT(
                          'id', p.id,
@@ -249,18 +260,19 @@ class CategoryController {
                          'created_at', p.created_at,
                          'author_username', COALESCE(u.username, 'Anonim')
                        )
-                     ), 
+                     ),
                    ']')
                    FROM posts p
+                   JOIN topics t ON p.topic_id = t.id
                    LEFT JOIN users u ON p.user_id = u.id
-                   WHERE p.category_id = c.id
+                   WHERE t.category_id = c.id
                    ORDER BY p.created_at DESC
                    LIMIT 5
                  ),
                  '[]'
                ) as recent_posts
         FROM categories c
-        LEFT JOIN categories p ON c.parent_id = p.id
+        LEFT JOIN categories parent ON c.parent_id = parent.id
         WHERE c.id = :categoryId
       `;
 

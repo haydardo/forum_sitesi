@@ -69,12 +69,17 @@ async function handlePostRequest(req, res) {
 
     // Kategorileri güncelle
     const sqlQuery = `
-      SELECT 
+      SELECT
         c.*,
-        (SELECT COUNT(*) FROM posts WHERE category_id = c.id) as post_count,
+        (
+          SELECT COUNT(*)
+          FROM posts pc
+          JOIN topics tc ON pc.topic_id = tc.id
+          WHERE tc.category_id = c.id
+        ) as post_count,
         COALESCE(
           (
-            SELECT CONCAT('[', 
+            SELECT CONCAT('[',
               GROUP_CONCAT(
                 CONCAT(
                   '{"id":', p.id,
@@ -87,9 +92,10 @@ async function handlePostRequest(req, res) {
               ),
             ']')
             FROM posts p
+            JOIN topics t ON p.topic_id = t.id
             LEFT JOIN users u ON p.user_id = u.id
-            WHERE p.category_id = c.id
-            GROUP BY p.category_id
+            WHERE t.category_id = c.id
+            GROUP BY t.category_id
             ORDER BY p.created_at DESC
             LIMIT 5
           ),
@@ -195,8 +201,8 @@ async function handleGetRequest(req, res) {
         ) as comments
       FROM posts p
       LEFT JOIN users u ON p.user_id = u.id
-      LEFT JOIN categories c ON p.category_id = c.id
       LEFT JOIN topics t ON p.topic_id = t.id
+      LEFT JOIN categories c ON t.category_id = c.id
       ORDER BY p.created_at DESC, p.id DESC
     `;
 

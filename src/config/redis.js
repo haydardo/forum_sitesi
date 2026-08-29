@@ -2,7 +2,7 @@ import { Redis } from "ioredis";
 
 const redisClient = new Redis({
   host: "localhost",
-  port: 6379,
+  port: 6380,
   enableOfflineQueue: true,
   retryStrategy: (times) => {
     const delay = Math.min(times * 50, 2000);
