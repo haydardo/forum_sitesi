@@ -4,6 +4,14 @@ Bu benim ilk projem. Amacım hazır bir framework'ün (Express, NestJS vb.) arka
 
 Kullanıcıların gönderiler oluşturabileceği, beğenebileceği ve kategorileri yönetebileceği bir forum sistemi uygulamasıdır.
 
+## Ekran Görüntüleri
+
+**Ana Sayfa**
+![Ana Sayfa](docs/screenshots/ana-sayfa.png)
+
+**Forum Kategorileri**
+![Forum Kategorileri](docs/screenshots/kategoriler.png)
+
 ## Özellikler
 
 - Kullanıcılar gönderiler oluşturabilir ve düzenleyebilir.
