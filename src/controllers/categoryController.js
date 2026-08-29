@@ -1,6 +1,19 @@
 import { sequelize } from "../utilities/db.js";
 import { getCategoriesWithCache } from "../routes/categoryRoutes.js";
 
+const escapeHtml = (value) =>
+  String(value ?? "").replace(
+    /[&<>"']/g,
+    (ch) =>
+      ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[ch])
+  );
+
 class CategoryController {
   // Kategorileri ve son gönderileri al
   async getAllCategories(req, res, redisClient) {
@@ -109,46 +122,98 @@ class CategoryController {
               <title>Forum Kategorileri</title>
               <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
               <style>
+                  body {
+                      background-color: #f8f9fa;
+                  }
+                  .categories-grid {
+                      display: grid;
+                      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+                      gap: 1.5rem;
+                  }
                   .category-card {
-                      transition: transform 0.2s;
-                      margin-bottom: 20px;
-                      height: calc(100vh - 250px);
-                      display: flex;
-                      flex-direction: column;
+                      background: #fff;
+                      border: 1px solid #e9ecef;
+                      border-radius: 12px;
+                      padding: 1.5rem;
+                      transition: transform 0.15s ease, box-shadow 0.15s ease;
                   }
                   .category-card:hover {
-                      transform: translateY(-5px);
+                      transform: translateY(-3px);
+                      box-shadow: 0 10px 24px rgba(0, 0, 0, 0.08);
                   }
-                  .category-card .card-body {
+                  .category-card-header {
+                      display: flex;
+                      justify-content: space-between;
+                      align-items: flex-start;
+                      gap: 0.75rem;
+                      margin-bottom: 0.35rem;
+                  }
+                  .post-count-badge {
+                      flex-shrink: 0;
+                      background: #eef2ff;
+                      color: #4338ca;
+                      font-size: 0.75rem;
+                      font-weight: 600;
+                      padding: 0.25rem 0.65rem;
+                      border-radius: 999px;
+                      white-space: nowrap;
+                  }
+                  .category-description {
+                      margin-bottom: 1.1rem;
+                  }
+                  .recent-posts-label {
+                      font-size: 0.75rem;
+                      font-weight: 700;
+                      text-transform: uppercase;
+                      letter-spacing: 0.04em;
+                      color: #6366f1;
+                      margin-bottom: 0.75rem;
+                  }
+                  .posts-list {
                       display: flex;
                       flex-direction: column;
-                      height: 100%;
-                      overflow: hidden;
-                  }
-                  .category-header {
-                      margin-bottom: 1rem;
-                  }
-                  .posts-container {
-                      flex: 1;
+                      gap: 0.6rem;
+                      max-height: 320px;
                       overflow-y: auto;
-                      padding-right: 8px;
+                      padding-right: 6px;
+                      margin: 0;
                   }
-                  .list-group {
-                      margin-bottom: 0;
+                  .post-item {
+                      border: 1px solid #eef0f2;
+                      border-radius: 8px;
+                      padding: 0.7rem 0.9rem;
+                      background: #fafbfc;
                   }
-                  .posts-container::-webkit-scrollbar {
+                  .post-item h4 {
+                      font-size: 0.95rem;
+                      margin-bottom: 0.25rem;
+                  }
+                  .post-item p {
+                      font-size: 0.85rem;
+                      margin-bottom: 0.4rem;
+                  }
+                  .post-meta {
+                      font-size: 0.75rem;
+                  }
+                  .empty-state {
+                      text-align: center;
+                      color: #adb5bd;
+                      font-size: 0.9rem;
+                      padding: 1.25rem 0 0.25rem;
+                  }
+                  .posts-list::-webkit-scrollbar {
                       width: 8px;
                   }
-                  .posts-container::-webkit-scrollbar-track {
+                  .posts-list::-webkit-scrollbar-track {
                       background: #f1f1f1;
                       border-radius: 4px;
                   }
-                  .posts-container::-webkit-scrollbar-thumb {
-                      background: #888;
+                  .posts-list::-webkit-scrollbar-thumb {
+                      background: #ced4da;
                       border-radius: 4px;
                   }
-                  .posts-container::-webkit-scrollbar-thumb:hover {
-                      background: #555;
+                  .posts-list::-webkit-scrollbar-thumb:hover {
+                      background: #adb5bd;
                   }
               </style>
           </head>
@@ -160,63 +225,55 @@ class CategoryController {
                   </div>
               </nav>
               <div class="container py-5">
-                  <h1 class="text-center mb-4">Forum Kategorileri</h1>
-                  <div class="row">
+                  <h1 class="text-center mb-5">Forum Kategorileri</h1>
+                  <div class="categories-grid">
                       ${processedCategories
-                        .map(
-                          (category) => `
-                          <div class="col-md-6">
-                              <div class="card category-card shadow-sm">
-                                  <div class="card-body">
-                                      <div class="category-header">
-                                          <h2 class="card-title h4">${
-                                            category.name
-                                          }</h2>
-                                          <p class="card-text text-muted">${
-                                            category.description
-                                          }</p>
-                                      </div>
-                                      ${
-                                        category.recent_posts &&
-                                        category.recent_posts.length > 0
-                                          ? `
-                                          <div class="posts-container">
-                                              <h3 class="h5 text-primary">Son Gönderiler</h3>
-                                              <div class="list-group">
-                                                  ${category.recent_posts
-                                                    .map(
-                                                      (post) => `
-                                                      <div class="list-group-item">
-                                                          <h4 class="h6 mb-1">${
-                                                            post.title
-                                                          }</h4>
-                                                          <p class="text-muted mb-1">${
-                                                            post.content
-                                                          }</p>
-                                                          <small class="text-muted">
-                                                              Yazar: ${
-                                                                post.author_username
-                                                              } | 
-                                                              Tarih: ${new Date(
-                                                                post.created_at
-                                                              ).toLocaleString(
-                                                                "tr-TR"
-                                                              )}
-                                                          </small>
-                                                      </div>
-                                                  `
-                                                    )
-                                                    .join("")}
+                        .map((category) => {
+                          const postCount = Number(category.post_count) || 0;
+                          const recentPosts = category.recent_posts || [];
+                          return `
+                          <div class="category-card">
+                              <div class="category-card-header">
+                                  <h2 class="h4 mb-0">${escapeHtml(
+                                    category.name
+                                  )}</h2>
+                                  <span class="post-count-badge">${postCount} gönderi</span>
+                              </div>
+                              <p class="category-description text-muted">${escapeHtml(
+                                category.description
+                              )}</p>
+                              ${
+                                recentPosts.length > 0
+                                  ? `
+                                  <div class="recent-posts-label">Son Gönderiler</div>
+                                  <div class="posts-list">
+                                      ${recentPosts
+                                        .map(
+                                          (post) => `
+                                          <div class="post-item">
+                                              <h4>${escapeHtml(post.title)}</h4>
+                                              <p class="text-muted">${escapeHtml(
+                                                post.content
+                                              )}</p>
+                                              <div class="post-meta text-muted">
+                                                  Yazar: ${escapeHtml(
+                                                    post.author_username
+                                                  )} &middot;
+                                                  ${new Date(
+                                                    post.created_at
+                                                  ).toLocaleString("tr-TR")}
                                               </div>
                                           </div>
-                                          `
-                                          : '<p class="text-muted">Bu kategoride henüz gönderi bulunmuyor.</p>'
-                                      }
+                                      `
+                                        )
+                                        .join("")}
                                   </div>
-                              </div>
+                                  `
+                                  : '<p class="empty-state mb-0">Bu kategoride henüz gönderi bulunmuyor.</p>'
+                              }
                           </div>
-                      `
-                        )
+                      `;
+                        })
                         .join("")}
                   </div>
               </div>
